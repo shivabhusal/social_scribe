@@ -83,3 +83,6 @@ config :phoenix_live_view,
 
 # Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false
+
+# HubSpot API configuration
+config :ueberauth_hubspot, :base_api_url, "https://api.hubapi.com"

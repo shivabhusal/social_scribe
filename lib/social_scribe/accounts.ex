@@ -272,7 +272,7 @@ defmodule SocialScribe.Accounts do
   Finds or creates a user credential for a user.
   """
   def find_or_create_user_credential(user, %Auth{provider: provider} = auth)
-      when provider in [:linkedin, :facebook] do
+      when provider in [:linkedin, :facebook, :hubspot] do
     case get_user_credential(
            user,
            Atom.to_string(auth.provider)
@@ -325,6 +325,23 @@ defmodule SocialScribe.Accounts do
       uid: auth.uid,
       token: auth.credentials.token,
       refresh_token: auth.credentials.token,
+      expires_at:
+        (auth.credentials.expires_at && DateTime.from_unix!(auth.credentials.expires_at)) ||
+          DateTime.add(DateTime.utc_now(), 3600, :second),
+      email: auth.info.email
+    }
+  end
+
+  defp format_credential_attrs(user, %Auth{provider: :hubspot} = auth) do
+    # HubSpot provides hub_id in extra.raw_info, not in uid
+    %{raw_info: %{hub_id: hub_id}} = auth.extra
+
+    %{
+      user_id: user.id,
+      provider: to_string(auth.provider),
+      uid: to_string(hub_id),
+      token: auth.credentials.token,
+      refresh_token: auth.credentials.refresh_token || auth.credentials.token,
       expires_at:
         (auth.credentials.expires_at && DateTime.from_unix!(auth.credentials.expires_at)) ||
           DateTime.add(DateTime.utc_now(), 3600, :second),
