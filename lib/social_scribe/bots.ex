@@ -137,7 +137,7 @@ defmodule SocialScribe.Bots do
         calendar_event_id: calendar_event.id,
         recall_bot_id: api_response.id,
         meeting_url: calendar_event.hangout_link,
-        status: api_response.status_changes |> List.first() |> Map.get(:code)
+        status: api_response |> get_in([:status_changes, Access.at(0), :code]) || "201"
       })
     else
       {:error, reason} -> {:error, {:api_error, reason}}

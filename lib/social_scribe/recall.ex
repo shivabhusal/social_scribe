@@ -22,8 +22,11 @@ defmodule SocialScribe.Recall do
   def create_bot(meeting_url, join_at) do
     body = %{
       meeting_url: meeting_url,
-      transcription_options: %{provider: "meeting_captions"},
-      join_at: Timex.format!(join_at, "{ISO:Extended}")
+      bot_name: "SocialScribe Bot",
+      join_at: Timex.format!(join_at, "{ISO:Extended}"),
+      recording_config: %{
+        transcript: %{provider: %{meeting_captions: %{}}}
+      }
     }
 
     Tesla.post(client(), "/bot", body)

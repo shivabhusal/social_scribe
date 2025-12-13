@@ -56,9 +56,11 @@ defmodule SocialScribe.MeetingInfoExample do
         }
       ],
       join_at: "2025-05-24T23:13:00Z",
-      transcription_options: %{
-        provider: "meeting_captions",
-        use_separate_streams_when_available: false
+      recording_config: %{
+        transcript: %{
+          provider: %{meeting_captions: %{}},
+          use_separate_streams_when_available: false
+        }
       },
       bot_name: "Meeting Notetaker",
       video_url:
