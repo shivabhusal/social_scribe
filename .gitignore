@@ -38,3 +38,6 @@ npm-debug.log
 /assets/node_modules/
 
 .env
+
+# HubSpot config file
+hubspot.config.yml
