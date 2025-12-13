@@ -211,6 +211,59 @@
       </div>
     <% end %>
   </div>
+
+  <div class="bg-white  shadow-xl rounded-lg p-6 md:p-8">
+    <h2 class="text-2xl font-semibold mb-6 text-slate-700 ">
+      Connected HubSpot Account
+    </h2>
+
+    <%= if not Enum.empty?(@hubspot_accounts) do %>
+      <ul class="space-y-4 mb-8">
+        <li
+          :for={account <- @hubspot_accounts}
+          class="flex justify-between items-center p-4 bg-slate-50  rounded-md shadow"
+        >
+          <div>
+            <p class="font-medium text-slate-700 ">
+              HubSpot Account
+            </p>
+            <p class="text-sm text-slate-500 ">
+              <%= if account.email do %>
+                {account.email}
+              <% else %>
+                Connected
+              <% end %>
+            </p>
+          </div>
+          <div class="inline-flex items-center px-3 py-1 text-sm font-medium rounded-full bg-green-50 text-green-700">
+            Connected
+          </div>
+        </li>
+      </ul>
+    <% else %>
+      <p class="mb-8 text-slate-600 ">
+        You haven't connected your HubSpot account yet.
+      </p>
+
+      <div>
+        <.link
+          href={~p"/auth/hubspot"}
+          method="get"
+          class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 "
+        >
+          <svg
+            class="-ml-1 mr-3 h-5 w-5"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+          >
+            <path d="M17.895 3.596c-.899 0-1.627.728-1.627 1.625 0 .899.728 1.627 1.627 1.627.899 0 1.625-.728 1.625-1.627 0-.897-.726-1.625-1.625-1.625m-11.99 0c-.899 0-1.625.728-1.625 1.625 0 .899.726 1.627 1.625 1.627.899 0 1.627-.728 1.627-1.627 0-.897-.728-1.625-1.627-1.625m11.99 11.979c-.899 0-1.627.728-1.627 1.625 0 .899.728 1.627 1.627 1.627.899 0 1.625-.728 1.625-1.627 0-.897-.726-1.625-1.625-1.625m-11.99 0c-.899 0-1.625.728-1.625 1.625 0 .899.726 1.627 1.625 1.627.899 0 1.627-.728 1.627-1.627 0-.897-.728-1.625-1.627-1.625M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm0 22.03c-5.538 0-10.03-4.492-10.03-10.03S6.462 1.97 12 1.97 22.03 6.462 22.03 12 17.538 22.03 12 22.03zm-5.94-9.455c-.899 0-1.625.728-1.625 1.627 0 .899.726 1.625 1.625 1.625.899 0 1.627-.726 1.627-1.625 0-.899-.728-1.627-1.627-1.627m11.99 0c-.899 0-1.627.728-1.627 1.627 0 .899.728 1.625 1.627 1.625.899 0 1.625-.726 1.625-1.625 0-.899-.726-1.627-1.625-1.627M12 5.95c-3.308 0-6 2.692-6 6s2.692 6 6 6 6-2.692 6-6-2.692-6-6-6zm0 10.03c-2.206 0-4.03-1.824-4.03-4.03S9.794 7.92 12 7.92s4.03 1.824 4.03 4.03-1.824 4.03-4.03 4.03z"/>
+          </svg>
+          Connect to HubSpot
+        </.link>
+      </div>
+    <% end %>
+  </div>
 </div>
 
 <.modal
