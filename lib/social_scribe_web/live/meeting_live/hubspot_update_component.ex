@@ -319,28 +319,69 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
       |> assign(:hubspot_credential, hubspot_credential)
 
     # Load suggestions for the meeting on mount (even without a contact)
+    # Always check cache first, then fetch if needed
     socket =
       if socket.assigns.suggestions == [] && not socket.assigns.loading_suggestions do
-        # Check for cached suggestions for this meeting (without contact filter)
-        # We'll load suggestions for the meeting, then update current_values when contact is selected
         meeting_id = socket.assigns.meeting.id
+        user_id = socket.assigns.current_user.id
 
-        # Try to get any cached suggestions for this meeting
-        # Since suggestions are stored per contact, we'll generate new ones if none exist
-        # But first, try to generate suggestions for the meeting
-        if connected?(socket) do
-          send(self(), {:load_meeting_suggestions, meeting_id})
-          assign(socket, :loading_suggestions, true)
-        else
+        # Check for any cached suggestions for this meeting
+        cached_suggestions_list = HubspotSuggestions.list_suggestions_for_meeting(meeting_id)
+
+        if Enum.any?(cached_suggestions_list) do
+          # Use the first cached suggestion (they're ordered by inserted_at desc)
+          cached = List.first(cached_suggestions_list)
+
+          suggestions =
+            case cached.suggestions do
+              %{"suggestions" => s} -> s
+              %{suggestions: s} -> s
+              s when is_list(s) -> s
+              _ -> []
+            end
+
+          # Convert to our format
+          suggestions_without_current =
+            Enum.map(suggestions, fn suggestion ->
+              field_str =
+                suggestion["field"] ||
+                suggestion[:field] ||
+                (if is_atom(suggestion["field"]), do: Atom.to_string(suggestion["field"]), else: nil) ||
+                ""
+
+              field_atom = if field_str != "", do: String.to_atom(field_str), else: :""
+
+              %{
+                field: field_atom,
+                current_value: nil,
+                suggested_value: suggestion["suggested_value"] || suggestion[:suggested_value] || "",
+                evidence: suggestion["evidence"] || suggestion[:evidence] || ""
+              }
+            end)
+            |> Enum.filter(fn s -> s.field != :"" end)
+
           socket
+          |> assign(:suggestions, suggestions_without_current)
+          |> assign(:loading_suggestions, false)
+          |> assign(:suggestions_error, nil)
+          |> assign(:using_cached_suggestions, true)
+        else
+          # No cache, generate suggestions
+          if connected?(socket) do
+            send(self(), {:load_meeting_suggestions, meeting_id, user_id})
+            assign(socket, :loading_suggestions, true)
+          else
+            socket
+          end
         end
       else
         socket
       end
 
-    # Load meeting suggestions (without contact)
+    # Load meeting suggestions (without contact) - generate and cache
     socket =
-      if Map.get(socket.assigns, :load_meeting_suggestions) do
+      if load_data = Map.get(socket.assigns, :load_meeting_suggestions) do
+        {meeting_id, user_id} = load_data
         socket = assign(socket, :load_meeting_suggestions, nil)
         meeting = socket.assigns.meeting
 
@@ -360,6 +401,27 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
                     evidence: suggestion.evidence || ""
                   }
                 end)
+
+              # Cache the suggestions with a placeholder contact_id for meeting-level suggestions
+              # Use "meeting_#{meeting_id}" as a placeholder contact_id
+              placeholder_contact_id = "meeting_#{meeting_id}"
+
+              suggestions_for_cache =
+                Enum.map(suggestions_without_current, fn suggestion ->
+                  %{
+                    "field" => Atom.to_string(suggestion.field),
+                    "current_value" => suggestion.current_value,
+                    "suggested_value" => suggestion.suggested_value,
+                    "evidence" => suggestion.evidence
+                  }
+                end)
+
+              HubspotSuggestions.save_suggestions(
+                meeting_id,
+                placeholder_contact_id,
+                %{"suggestions" => suggestions_for_cache},
+                user_id
+              )
 
               send(parent_pid, {:meeting_suggestions_loaded, suggestions_without_current})
 

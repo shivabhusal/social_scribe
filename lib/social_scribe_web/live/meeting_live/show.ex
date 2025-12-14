@@ -74,11 +74,11 @@ defmodule SocialScribeWeb.MeetingLive.Show do
   end
 
   @impl true
-  def handle_info({:load_meeting_suggestions, _meeting_id}, socket) do
+  def handle_info({:load_meeting_suggestions, meeting_id, user_id}, socket) do
     # Load suggestions for the meeting (without a contact)
     send_update(SocialScribeWeb.MeetingLive.HubspotUpdateComponent,
       id: "hubspot-update-#{socket.assigns.meeting.id}",
-      load_meeting_suggestions: true
+      load_meeting_suggestions: {meeting_id, user_id}
     )
 
     {:noreply, socket}
