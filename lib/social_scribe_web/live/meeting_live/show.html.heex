@@ -91,6 +91,72 @@
 
     <.transcript_content meeting_transcript={@meeting.meeting_transcript} />
     
+    <%= if Enum.any?(@hubspot_suggestions) do %>
+      <div class="bg-white shadow-xl rounded-lg p-6 md:p-8">
+        <h2 class="text-2xl font-semibold mb-4 text-slate-700">AI-Generated HubSpot Contact Suggestions</h2>
+        <p class="text-slate-600 mb-6">
+          The following contact updates were suggested by AI based on this meeting transcript.
+        </p>
+        
+        <div class="space-y-6">
+          <div
+            :for={suggestion_record <- @hubspot_suggestions}
+            class="border border-slate-200 rounded-lg p-5 bg-slate-50"
+          >
+            <div class="mb-4">
+              <h3 class="text-lg font-semibold text-slate-800 mb-1">
+                Contact ID: {suggestion_record.hubspot_contact_id}
+              </h3>
+              <p class="text-sm text-slate-500">
+                Generated: {format_datetime(suggestion_record.inserted_at)}
+              </p>
+            </div>
+
+            <%= if suggestions = extract_suggestions(suggestion_record.suggestions) do %>
+              <div class="space-y-4">
+                <div
+                  :for={suggestion <- suggestions}
+                  class="bg-white rounded-md p-4 border border-slate-200"
+                >
+                  <div class="flex items-start justify-between mb-2">
+                    <h4 class="font-medium text-slate-700 capitalize">
+                      {format_field_name(suggestion["field"] || suggestion[:field])}
+                    </h4>
+                  </div>
+                  
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                    <div>
+                      <p class="text-xs text-slate-500 mb-1">Current Value</p>
+                      <p class="text-sm text-slate-700 bg-slate-50 p-2 rounded">
+                        {format_value(suggestion["current_value"] || suggestion[:current_value])}
+                      </p>
+                    </div>
+                    <div>
+                      <p class="text-xs text-slate-500 mb-1">Suggested Value</p>
+                      <p class="text-sm text-indigo-700 bg-indigo-50 p-2 rounded font-medium">
+                        {format_value(suggestion["suggested_value"] || suggestion[:suggested_value])}
+                      </p>
+                    </div>
+                  </div>
+
+                  <%= if evidence = suggestion["evidence"] || suggestion[:evidence] do %>
+                    <div class="mt-3 pt-3 border-t border-slate-200">
+                      <p class="text-xs text-slate-500 mb-1">Evidence from transcript:</p>
+                      <p class="text-sm text-slate-600 italic">
+                        "{evidence}"
+                      </p>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+            <% else %>
+              <p class="text-slate-500 text-sm">No suggestions available.</p>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    <% end %>
+
     <%= if @meeting.meeting_transcript && @meeting.meeting_transcript.content && Map.get(@meeting.meeting_transcript.content, "data") && Enum.any?(Map.get(@meeting.meeting_transcript.content, "data")) do %>
       <div class="bg-white shadow-xl rounded-lg p-6 md:p-8">
         <h2 class="text-2xl font-semibold mb-4 text-slate-700">HubSpot CRM Updates</h2>

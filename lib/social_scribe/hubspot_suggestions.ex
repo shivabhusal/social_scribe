@@ -50,4 +50,15 @@ defmodule SocialScribe.HubspotSuggestions do
       suggestion -> Repo.delete(suggestion)
     end
   end
+
+  @doc """
+  Lists all cached suggestions for a meeting.
+  """
+  def list_suggestions_for_meeting(meeting_id) do
+    from(hs in HubspotSuggestion,
+      where: hs.meeting_id == ^meeting_id,
+      order_by: [desc: hs.inserted_at]
+    )
+    |> Repo.all()
+  end
 end

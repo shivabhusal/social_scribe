@@ -6,6 +6,7 @@ defmodule SocialScribeWeb.MeetingLive.Show do
 
   alias SocialScribe.Meetings
   alias SocialScribe.Automations
+  alias SocialScribe.HubspotSuggestions
 
   @impl true
   def mount(%{"id" => meeting_id}, _session, socket) do
@@ -17,6 +18,7 @@ defmodule SocialScribeWeb.MeetingLive.Show do
       |> Kernel.>(0)
 
     automation_results = Automations.list_automation_results_for_meeting(meeting_id)
+    hubspot_suggestions = HubspotSuggestions.list_suggestions_for_meeting(meeting_id)
 
     if meeting.calendar_event.user_id != socket.assigns.current_user.id do
       socket =
@@ -32,6 +34,7 @@ defmodule SocialScribeWeb.MeetingLive.Show do
         |> assign(:meeting, meeting)
         |> assign(:automation_results, automation_results)
         |> assign(:user_has_automations, user_has_automations)
+        |> assign(:hubspot_suggestions, hubspot_suggestions)
         |> assign(
           :follow_up_email_form,
           to_form(%{
@@ -127,6 +130,48 @@ defmodule SocialScribeWeb.MeetingLive.Show do
       true -> "Less than a second"
     end
   end
+
+  defp extract_suggestions(suggestions_map) when is_map(suggestions_map) do
+    # Handle both atom and string keys
+    suggestions_map
+    |> Map.get("suggestions", Map.get(suggestions_map, :suggestions, []))
+    |> List.wrap()
+  end
+
+  defp extract_suggestions(_), do: []
+
+  defp format_field_name(field) when is_binary(field) do
+    field
+    |> String.replace("_", " ")
+    |> String.split()
+    |> Enum.map(&String.capitalize/1)
+    |> Enum.join(" ")
+  end
+
+  defp format_field_name(field) when is_atom(field) do
+    field
+    |> Atom.to_string()
+    |> format_field_name()
+  end
+
+  defp format_field_name(_), do: "Unknown Field"
+
+  defp format_value(nil), do: "(empty)"
+  defp format_value(""), do: "(empty)"
+  defp format_value(value) when is_binary(value), do: value
+  defp format_value(value), do: to_string(value)
+
+  defp format_datetime(%DateTime{} = dt) do
+    Calendar.strftime(dt, "%B %d, %Y at %I:%M %p")
+  end
+
+  defp format_datetime(%NaiveDateTime{} = dt) do
+    dt
+    |> DateTime.from_naive!("Etc/UTC")
+    |> format_datetime()
+  end
+
+  defp format_datetime(_), do: "Unknown date"
 
   attr :meeting_transcript, :map, required: true
 
