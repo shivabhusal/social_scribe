@@ -206,7 +206,10 @@ defmodule SocialScribeWeb.MeetingLive.Show do
   defp format_value(value), do: to_string(value)
 
   defp format_datetime(%DateTime{} = dt) do
-    Calendar.strftime(dt, "%B %d, %Y at %I:%M %p")
+    # Format datetime with timezone
+    timezone_str = dt.time_zone || "UTC"
+    timezone_display = format_timezone(timezone_str)
+    Calendar.strftime(dt, "%B %d, %Y at %I:%M %p") <> " #{timezone_display}"
   end
 
   defp format_datetime(%NaiveDateTime{} = dt) do
@@ -216,6 +219,25 @@ defmodule SocialScribeWeb.MeetingLive.Show do
   end
 
   defp format_datetime(_), do: "Unknown date"
+
+  defp format_timezone("Etc/UTC"), do: "UTC"
+  defp format_timezone("America/New_York"), do: "EST/EDT"
+  defp format_timezone("America/Los_Angeles"), do: "PST/PDT"
+  defp format_timezone("America/Chicago"), do: "CST/CDT"
+  defp format_timezone("America/Denver"), do: "MST/MDT"
+  defp format_timezone("America/Phoenix"), do: "MST"
+  defp format_timezone("Europe/London"), do: "GMT/BST"
+  defp format_timezone("Europe/Paris"), do: "CET/CEST"
+  defp format_timezone("Asia/Tokyo"), do: "JST"
+  defp format_timezone("Australia/Sydney"), do: "AEST/AEDT"
+  defp format_timezone(tz) when is_binary(tz) do
+    # Extract the city name from timezone string (e.g., "America/New_York" -> "New York")
+    tz
+    |> String.split("/")
+    |> List.last()
+    |> String.replace("_", " ")
+  end
+  defp format_timezone(_), do: "UTC"
 
   attr :meeting_transcript, :map, required: true
 

@@ -340,7 +340,8 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
               _ -> []
             end
 
-          # Convert to our format
+          # Convert to our format - always set current_value to nil when no contact is selected
+          # This ensures we don't show stale values from a previous contact
           suggestions_without_current =
             Enum.map(suggestions, fn suggestion ->
               field_str =
@@ -353,7 +354,7 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
 
               %{
                 field: field_atom,
-                current_value: nil,
+                current_value: nil,  # Always nil when no contact is selected
                 suggested_value: suggestion["suggested_value"] || suggestion[:suggested_value] || "",
                 evidence: suggestion["evidence"] || suggestion[:evidence] || ""
               }
@@ -452,58 +453,73 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
           |> assign(:update_error, nil)
           |> assign(:hubspot_credential, updated_credential)
 
-        # Update existing suggestions with contact's current values
+        # Always update suggestions with the selected contact's current values
+        # This ensures we show the correct current values for the selected contact
         current_values = contact.properties
 
-        updated_suggestions =
-          Enum.map(socket.assigns.suggestions, fn suggestion ->
-            field_str = Atom.to_string(suggestion.field)
-            current_value = Map.get(current_values, field_str)
-
-            %{suggestion | current_value: current_value}
+        # Get suggestions from cache or use existing ones
+        suggestions_to_update = if cached_suggestions do
+          # Use cached suggestions structure
+          case cached_suggestions.suggestions do
+            %{"suggestions" => s} -> s
+            %{suggestions: s} -> s
+            s when is_list(s) -> s
+            _ -> []
+          end
+        else
+          # Use existing suggestions from socket
+          socket.assigns.suggestions
+          |> Enum.map(fn suggestion ->
+            %{
+              "field" => Atom.to_string(suggestion.field),
+              "suggested_value" => suggestion.suggested_value,
+              "evidence" => suggestion.evidence || ""
+            }
           end)
+        end
 
-        if cached_suggestions do
-          # Use cached suggestions but update with contact's current values
-          suggestions =
-            case cached_suggestions.suggestions do
-              %{"suggestions" => s} -> s
-              %{suggestions: s} -> s
-              s when is_list(s) -> s
-              _ -> []
-            end
-
-          suggestions_with_current =
-            Enum.map(suggestions, fn suggestion ->
-              field_str =
+        # Always update with the contact's current values (fresh from HubSpot)
+        suggestions_with_current =
+          Enum.map(suggestions_to_update, fn suggestion ->
+            field_str =
+              if is_map(suggestion) do
                 suggestion["field"] ||
                 suggestion[:field] ||
                 (if is_atom(suggestion["field"]), do: Atom.to_string(suggestion["field"]), else: nil) ||
                 ""
+              else
+                ""
+              end
 
-              field_atom = String.to_atom(field_str)
-              current_value = Map.get(current_values, field_str)
+            field_atom = if field_str != "", do: String.to_atom(field_str), else: :""
 
-              %{
-                field: field_atom,
-                current_value: current_value,
-                suggested_value: suggestion["suggested_value"] || suggestion[:suggested_value] || "",
-                evidence: suggestion["evidence"] || suggestion[:evidence] || ""
-              }
-            end)
-            |> Enum.filter(fn s -> s.field != :"" end)
+            # Get current value from the contact's properties (fresh from HubSpot)
+            current_value = Map.get(current_values, field_str)
 
-          socket
-          |> assign(:suggestions, suggestions_with_current)
-          |> assign(:loading_suggestions, false)
-          |> assign(:suggestions_error, nil)
-          |> assign(:using_cached_suggestions, true)
-        else
-          # Update existing suggestions with contact's current values
-          socket
-          |> assign(:suggestions, updated_suggestions)
-          |> assign(:loading_suggestions, false)
-        end
+            %{
+              field: field_atom,
+              current_value: current_value,
+              suggested_value:
+                if is_map(suggestion) do
+                  suggestion["suggested_value"] || suggestion[:suggested_value] || ""
+                else
+                  suggestion.suggested_value || ""
+                end,
+              evidence:
+                if is_map(suggestion) do
+                  suggestion["evidence"] || suggestion[:evidence] || ""
+                else
+                  suggestion.evidence || ""
+                end
+            }
+          end)
+          |> Enum.filter(fn s -> s.field != :"" end)
+
+        socket
+        |> assign(:suggestions, suggestions_with_current)
+        |> assign(:loading_suggestions, false)
+        |> assign(:suggestions_error, nil)
+        |> assign(:using_cached_suggestions, not is_nil(cached_suggestions))
       else
         socket
       end
