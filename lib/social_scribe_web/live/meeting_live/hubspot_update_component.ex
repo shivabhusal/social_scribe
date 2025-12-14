@@ -225,40 +225,52 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
                 </div>
 
                 <!-- Footer Summary and Actions -->
-                <div class="mt-6 pt-4 border-t border-slate-200 flex items-center justify-between">
-                  <div class="text-sm text-slate-600">
-                    <%= count_total_selected(@suggestions, @approved_suggestions) %> field<%= pluralize_selected(count_total_selected(@suggestions, @approved_suggestions)) %> selected to update
+                <%= if not @update_success do %>
+                  <div class="mt-6 pt-4 border-t border-slate-200 flex items-center justify-between">
+                    <div class="text-sm text-slate-600">
+                      <%= count_total_selected(@suggestions, @approved_suggestions) %> field<%= pluralize_selected(count_total_selected(@suggestions, @approved_suggestions)) %> selected to update
+                    </div>
+                    <div class="flex items-center gap-3">
+                      <button
+                        type="button"
+                        phx-click="cancel"
+                        phx-target={@myself}
+                        class="px-4 py-2 border border-slate-300 rounded-md text-slate-700 bg-white hover:bg-slate-50 font-medium"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        phx-click="update_hubspot"
+                        phx-target={@myself}
+                        phx-disable-with="Updating..."
+                        disabled={Enum.empty?(@approved_suggestions)}
+                        class="px-4 py-2 rounded-md text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        style="background-color: #10b981;"
+                      >
+                        Update HubSpot
+                      </button>
+                    </div>
                   </div>
-                  <div class="flex items-center gap-3">
-                    <button
-                      type="button"
-                      phx-click="cancel"
-                      phx-target={@myself}
-                      class="px-4 py-2 border border-slate-300 rounded-md text-slate-700 bg-white hover:bg-slate-50 font-medium"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      phx-click="update_hubspot"
-                      phx-target={@myself}
-                      phx-disable-with="Updating..."
-                      disabled={Enum.empty?(@approved_suggestions)}
-                      class="px-4 py-2 rounded-md text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                      style="background-color: #10b981;"
-                    >
-                      Update HubSpot
-                    </button>
-                  </div>
-                </div>
+                <% end %>
               <% end %>
           <% end %>
         <% end %>
 
         <!-- ✅ Success / Error Messages (NO extra end above this) -->
         <%= if @update_success do %>
-          <div class="mt-6 p-4 bg-green-50 border border-green-200 rounded-md text-green-800">
-            Contact updated successfully!
+          <div class="mt-6 p-4 bg-green-50 border border-green-200 rounded-md">
+            <div class="flex items-center justify-between">
+              <p class="text-green-800 font-medium">Contact updated successfully!</p>
+              <button
+                type="button"
+                phx-click="cancel"
+                phx-target={@myself}
+                class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium"
+              >
+                Close
+              </button>
+            </div>
           </div>
         <% end %>
 
