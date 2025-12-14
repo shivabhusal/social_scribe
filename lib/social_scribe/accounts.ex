@@ -396,6 +396,63 @@ defmodule SocialScribe.Accounts do
     |> Repo.update()
   end
 
+  def update_credential_tokens(%UserCredential{} = credential, %{
+        "access_token" => token,
+        "expires_in" => expires_in,
+        "refresh_token" => refresh_token
+      }) do
+    credential
+    |> UserCredential.changeset(%{
+      token: token,
+      refresh_token: refresh_token,
+      expires_at: DateTime.add(DateTime.utc_now(), expires_in, :second)
+    })
+    |> Repo.update()
+  end
+
+  @doc """
+  Ensures a HubSpot credential has a valid token, refreshing if necessary.
+  Returns {:ok, token} or {:error, reason}
+  """
+  def ensure_valid_hubspot_token(%UserCredential{} = credential) do
+    # Check if token is expired or will expire soon (within 5 minutes)
+    expires_at = credential.expires_at || DateTime.utc_now()
+    buffer_seconds = 300 # 5 minutes buffer
+
+    if DateTime.compare(DateTime.add(expires_at, -buffer_seconds, :second), DateTime.utc_now()) == :lt do
+      # Token is expired or will expire soon, refresh it
+      case SocialScribe.TokenRefresher.refresh_hubspot_token(credential.refresh_token) do
+        {:ok, token_data} ->
+          # HubSpot returns access_token and expires_in
+          updated_attrs = %{
+            "access_token" => token_data["access_token"],
+            "expires_in" => token_data["expires_in"] || 3600
+          }
+
+          # Include refresh_token if provided
+          updated_attrs =
+            if token_data["refresh_token"] do
+              Map.put(updated_attrs, "refresh_token", token_data["refresh_token"])
+            else
+              updated_attrs
+            end
+
+          case update_credential_tokens(credential, updated_attrs) do
+            {:ok, updated_credential} ->
+              {:ok, updated_credential.token}
+
+            {:error, reason} ->
+              {:error, {:update_failed, reason}}
+          end
+
+        {:error, reason} ->
+          {:error, {:refresh_failed, reason}}
+      end
+    else
+      {:ok, credential.token}
+    end
+  end
+
   alias SocialScribe.Accounts.FacebookPageCredential
 
   @doc """

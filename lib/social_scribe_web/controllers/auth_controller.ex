@@ -101,7 +101,7 @@ defmodule SocialScribeWeb.AuthController do
         "provider" => "hubspot"
       })
       when not is_nil(user) do
-        require IEx; IEx.pry()
+
     Logger.info("HubSpot OAuth")
     Logger.info(auth)
 
