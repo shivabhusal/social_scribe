@@ -4,6 +4,7 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
   alias SocialScribe.Accounts
   alias SocialScribe.HubspotApi
   alias SocialScribe.HubspotAISuggestions
+  alias SocialScribe.HubspotSuggestions
 
   @impl true
   def render(assigns) do
@@ -102,7 +103,22 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
               <% else %>
                 <!-- Suggestions Review Section -->
                 <div class="mt-6">
-                  <h3 class="text-lg font-semibold text-slate-700 mb-4">Suggested Updates</h3>
+                  <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-slate-700">Suggested Updates</h3>
+                    <div class="flex items-center gap-3">
+                      <%= if @using_cached_suggestions do %>
+                        <span class="text-xs text-slate-500 italic">Using cached suggestions</span>
+                      <% end %>
+                      <.button
+                        phx-click="refetch_suggestions"
+                        phx-target={@myself}
+                        phx-disable-with="Refetching..."
+                        class="text-sm px-3 py-1 border border-slate-300 rounded-md text-slate-700 bg-white hover:bg-slate-50"
+                      >
+                        Refetch from AI
+                      </.button>
+                    </div>
+                  </div>
                   <div class="space-y-4">
                     <div
                       :for={suggestion <- @suggestions}
@@ -178,24 +194,116 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
 
   @impl true
   def update(assigns, socket) do
+    # Merge assigns first to ensure current_user and meeting are available
+    socket = assign(socket, assigns)
+
+    # Only initialize state if not already set (preserve existing state)
+    socket =
+      socket
+      |> assign_new(:search_form, fn -> to_form(%{"query" => ""}) end)
+      |> assign_new(:search_results, fn -> nil end)
+      |> assign_new(:search_error, fn -> nil end)
+      |> assign_new(:selected_contact, fn -> nil end)
+      |> assign_new(:suggestions, fn -> [] end)
+      |> assign_new(:loading_suggestions, fn -> false end)
+      |> assign_new(:suggestions_error, fn -> nil end)
+      |> assign_new(:approved_suggestions, fn -> %{} end)
+      |> assign_new(:update_success, fn -> false end)
+      |> assign_new(:update_error, fn -> nil end)
+      |> assign_new(:using_cached_suggestions, fn -> false end)
+
+    # Always update hubspot_credential (it might change)
     hubspot_credential =
-      Accounts.get_user_credential(assigns.current_user, "hubspot")
+      Accounts.get_user_credential(socket.assigns.current_user, "hubspot")
 
     socket =
       socket
-      |> assign(assigns)
       |> assign(:hubspot_connected, not is_nil(hubspot_credential))
       |> assign(:hubspot_credential, hubspot_credential)
-      |> assign(:search_form, to_form(%{"query" => ""}))
-      |> assign(:search_results, nil)
-      |> assign(:search_error, nil)
-      |> assign(:selected_contact, nil)
-      |> assign(:suggestions, [])
-      |> assign(:loading_suggestions, false)
-      |> assign(:suggestions_error, nil)
-      |> assign(:approved_suggestions, %{})
-      |> assign(:update_success, false)
-      |> assign(:update_error, nil)
+
+    # Check if we need to generate suggestions (forwarded from parent LiveView)
+    # Only process if the assign is present and we're not already loading
+    socket =
+      cond do
+        contact = Map.get(socket.assigns, :generate_suggestions_for) ->
+          # Remove the assign to prevent reprocessing
+          socket = assign(socket, :generate_suggestions_for, nil)
+
+          # Spawn task to generate suggestions asynchronously
+          parent_pid = self()
+          Task.start(fn ->
+            send(parent_pid, {:generate_suggestions, contact})
+          end)
+          assign(socket, :loading_suggestions, true)
+
+        contact = Map.get(socket.assigns, :process_suggestions) ->
+          # Remove the assign to prevent reprocessing
+          socket = assign(socket, :process_suggestions, nil)
+
+          # Process suggestions from Task (forwarded by parent)
+          # Generate suggestions asynchronously and update via parent LiveView
+          parent_pid = self()
+          meeting = socket.assigns.meeting
+          user = socket.assigns.current_user
+          current_values = contact.properties
+
+          Task.start(fn ->
+            case HubspotAISuggestions.generate_suggestions(meeting) do
+              {:ok, suggestions} ->
+                suggestions_with_current =
+                  Enum.map(suggestions, fn suggestion ->
+                    current_value = Map.get(current_values, Atom.to_string(suggestion.field))
+                    %{suggestion | current_value: current_value}
+                  end)
+
+                suggestions_for_cache =
+                  Enum.map(suggestions_with_current, fn suggestion ->
+                    %{
+                      "field" => Atom.to_string(suggestion.field),
+                      "current_value" => suggestion.current_value,
+                      "suggested_value" => suggestion.suggested_value,
+                      "evidence" => suggestion.evidence
+                    }
+                  end)
+
+                HubspotSuggestions.save_suggestions(
+                  meeting.id,
+                  contact.id,
+                  %{"suggestions" => suggestions_for_cache},
+                  user.id
+                )
+
+                send(parent_pid, {:suggestions_generated, suggestions_with_current})
+              {:error, reason} ->
+                send(parent_pid, {:suggestions_error, format_error(reason)})
+            end
+          end)
+          assign(socket, :loading_suggestions, true)
+
+        suggestions = Map.get(socket.assigns, :suggestions_result) ->
+          # Remove the assign to prevent reprocessing
+          socket = assign(socket, :suggestions_result, nil)
+
+          # Suggestions generated successfully
+          socket
+          |> assign(:suggestions, suggestions)
+          |> assign(:loading_suggestions, false)
+          |> assign(:suggestions_error, nil)
+          |> assign(:using_cached_suggestions, false)
+
+        error = Map.get(socket.assigns, :suggestions_error) ->
+          # Remove the assign to prevent reprocessing
+          socket = assign(socket, :suggestions_error, nil)
+
+          # Error generating suggestions
+          socket
+          |> assign(:suggestions, [])
+          |> assign(:loading_suggestions, false)
+          |> assign(:suggestions_error, error)
+
+        true ->
+          socket
+      end
 
     {:ok, socket}
   end
@@ -261,10 +369,56 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
                 |> assign(:update_error, nil)
                 |> assign(:hubspot_credential, updated_credential)
 
-              # Generate suggestions asynchronously
-              send(self(), {:generate_suggestions, contact})
+              # Check for cached suggestions first
+              case HubspotSuggestions.get_cached_suggestions(
+                     socket.assigns.meeting.id,
+                     contact.id
+                   ) do
+                nil ->
+                  # No cache, generate suggestions asynchronously
+                  # Send message to parent LiveView, which will forward to component
+                  send(self(), {:generate_suggestions_for_component, contact})
+                  {:noreply, socket}
 
-              {:noreply, socket}
+                cached ->
+                  # Use cached suggestions
+                  suggestions =
+                    case cached.suggestions do
+                      %{"suggestions" => s} -> s
+                      %{suggestions: s} -> s
+                      s when is_list(s) -> s
+                      _ -> []
+                    end
+
+                  current_values = contact.properties
+
+                  suggestions_with_current =
+                    Enum.map(suggestions, fn suggestion ->
+                      field_str =
+                        suggestion["field"] ||
+                        suggestion[:field] ||
+                        (if is_atom(suggestion["field"]), do: Atom.to_string(suggestion["field"]), else: nil) ||
+                        ""
+
+                      field_atom = String.to_atom(field_str)
+                      current_value = Map.get(current_values, field_str)
+
+                      %{
+                        field: field_atom,
+                        current_value: current_value,
+                        suggested_value: suggestion["suggested_value"] || suggestion[:suggested_value] || "",
+                        evidence: suggestion["evidence"] || suggestion[:evidence] || ""
+                      }
+                    end)
+                    |> Enum.filter(fn s -> s.field != :"" end)
+
+                  {:noreply,
+                   socket
+                   |> assign(:suggestions, suggestions_with_current)
+                   |> assign(:loading_suggestions, false)
+                   |> assign(:suggestions_error, nil)
+                   |> assign(:using_cached_suggestions, true)}
+              end
 
             {:error, reason} ->
               error_message = format_error(reason)
@@ -365,11 +519,30 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
             %{suggestion | current_value: current_value}
           end)
 
+        # Store suggestions in cache
+        suggestions_for_cache =
+          Enum.map(suggestions_with_current, fn suggestion ->
+            %{
+              "field" => Atom.to_string(suggestion.field),
+              "current_value" => suggestion.current_value,
+              "suggested_value" => suggestion.suggested_value,
+              "evidence" => suggestion.evidence
+            }
+          end)
+
+        HubspotSuggestions.save_suggestions(
+          socket.assigns.meeting.id,
+          contact.id,
+          %{"suggestions" => suggestions_for_cache},
+          socket.assigns.current_user.id
+        )
+
         {:noreply,
          socket
          |> assign(:suggestions, suggestions_with_current)
          |> assign(:loading_suggestions, false)
-         |> assign(:suggestions_error, nil)}
+         |> assign(:suggestions_error, nil)
+         |> assign(:using_cached_suggestions, false)}
 
       {:error, reason} ->
         error_message = format_error(reason)
@@ -377,7 +550,33 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
          socket
          |> assign(:suggestions, [])
          |> assign(:loading_suggestions, false)
-         |> assign(:suggestions_error, error_message)}
+         |> assign(:suggestions_error, error_message)
+         |> assign(:using_cached_suggestions, false)}
+    end
+  end
+
+  def handle_event("refetch_suggestions", _params, socket) do
+    if socket.assigns.selected_contact do
+      # Delete cached suggestions and regenerate
+      HubspotSuggestions.delete_suggestions(
+        socket.assigns.meeting.id,
+        socket.assigns.selected_contact.id
+      )
+
+      socket =
+        socket
+        |> assign(:suggestions, [])
+        |> assign(:approved_suggestions, %{})
+        |> assign(:loading_suggestions, true)
+        |> assign(:suggestions_error, nil)
+        |> assign(:using_cached_suggestions, false)
+
+      # Send message to parent LiveView, which will forward to component
+      send(self(), {:generate_suggestions_for_component, socket.assigns.selected_contact})
+
+      {:noreply, socket}
+    else
+      {:noreply, socket}
     end
   end
 

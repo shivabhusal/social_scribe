@@ -185,3 +185,10 @@ This project includes a GitHub Actions workflow for CI/CD, as defined in `.githu
 * Docs: https://hexdocs.pm/phoenix
 * Forum: https://elixirforum.com/c/phoenix-forum
 * Source: https://github.com/phoenixframework/phoenix
+
+
+
+AI Content Generation:
+Once a meeting is processed, an AIContentGenerationWorker is enqueued.
+This worker uses Google Gemini to draft a follow-up email.
+It also processes all active "Automations" defined by the user. For each automation, it combines the meeting data with the user's prompt_template and calls Gemini to generate content (e.g., a LinkedIn post), saving it as an AutomationResult.

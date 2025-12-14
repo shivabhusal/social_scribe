@@ -252,7 +252,7 @@
               phx-click="disconnect_hubspot"
               phx-value-credential-id={account.id}
               phx-confirm="Are you sure you want to disconnect this HubSpot account?"
-              class="inline-flex items-center px-4 py-2 border border-red-300 text-sm font-medium rounded-md shadow-sm text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+              class="phx-submit-loading:opacity-75 rounded-lg bg-zinc-900 hover:bg-zinc-700 py-2 px-3 text-sm font-semibold leading-6 text-white active:text-white/80 "
             >
               Disconnect
             </.button>
@@ -312,3 +312,11 @@
     </.simple_form>
   </div>
 </.modal>
+
+<.live_component
+  :if={@show_hubspot_modal}
+  module={SocialScribeWeb.UserSettingsLive.HubspotUpdateModal}
+  id="hubspot-update-modal-component"
+  show={@show_hubspot_modal}
+  current_user={@current_user}
+/>

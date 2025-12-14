@@ -70,6 +70,50 @@ defmodule SocialScribeWeb.MeetingLive.Show do
     {:noreply, socket}
   end
 
+  @impl true
+  def handle_info({:generate_suggestions_for_component, contact}, socket) do
+    # Forward message to HubSpot update component via send_update
+    send_update(SocialScribeWeb.MeetingLive.HubspotUpdateComponent,
+      id: "hubspot-update-#{socket.assigns.meeting.id}",
+      generate_suggestions_for: contact
+    )
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:generate_suggestions, contact}, socket) do
+    # Forward message from Task to HubSpot update component
+    send_update(SocialScribeWeb.MeetingLive.HubspotUpdateComponent,
+      id: "hubspot-update-#{socket.assigns.meeting.id}",
+      process_suggestions: contact
+    )
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:suggestions_generated, suggestions}, socket) do
+    # Forward suggestions result to component
+    send_update(SocialScribeWeb.MeetingLive.HubspotUpdateComponent,
+      id: "hubspot-update-#{socket.assigns.meeting.id}",
+      suggestions_result: suggestions
+    )
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:suggestions_error, error}, socket) do
+    # Forward error to component
+    send_update(SocialScribeWeb.MeetingLive.HubspotUpdateComponent,
+      id: "hubspot-update-#{socket.assigns.meeting.id}",
+      suggestions_error: error
+    )
+
+    {:noreply, socket}
+  end
+
   defp format_duration(nil), do: "N/A"
 
   defp format_duration(seconds) when is_integer(seconds) do

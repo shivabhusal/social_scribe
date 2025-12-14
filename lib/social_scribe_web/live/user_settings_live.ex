@@ -33,6 +33,7 @@ defmodule SocialScribeWeb.UserSettingsLive do
       |> assign(:user_bot_preference, user_bot_preference)
       |> assign(:user_bot_preference_form, to_form(changeset))
       |> assign(:hubspot_default_scope, hubspot_default_scope)
+      |> assign(:show_hubspot_modal, false)
 
     {:ok, socket}
   end
@@ -87,6 +88,16 @@ defmodule SocialScribeWeb.UserSettingsLive do
   @impl true
   def handle_event("validate", params, socket) do
     {:noreply, assign(socket, :form, to_form(params))}
+  end
+
+  @impl true
+  def handle_event("open_hubspot_update_modal", _params, socket) do
+    {:noreply, assign(socket, :show_hubspot_modal, true)}
+  end
+
+  @impl true
+  def handle_event("close_hubspot_modal", _params, socket) do
+    {:noreply, assign(socket, :show_hubspot_modal, false)}
   end
 
   @impl true
@@ -163,6 +174,58 @@ defmodule SocialScribeWeb.UserSettingsLive do
        socket
        |> put_flash(:error, "Unauthorized action")}
     end
+  end
+
+  @impl true
+  def handle_info({:hubspot_update_success, message}, socket) do
+    {:noreply,
+     socket
+     |> put_flash(:info, message)
+     |> assign(:show_hubspot_modal, false)}
+  end
+
+  @impl true
+  def handle_info({:generate_suggestions_for_component, contact, meeting}, socket) do
+    # Forward message to HubSpot update modal component via send_update
+    send_update(SocialScribeWeb.UserSettingsLive.HubspotUpdateModal,
+      id: "hubspot-update-modal",
+      generate_suggestions_for: {contact, meeting}
+    )
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:generate_suggestions, contact, meeting}, socket) do
+    # Forward message from Task to HubSpot update modal component
+    send_update(SocialScribeWeb.UserSettingsLive.HubspotUpdateModal,
+      id: "hubspot-update-modal",
+      process_suggestions: {contact, meeting}
+    )
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:suggestions_generated, suggestions}, socket) do
+    # Forward suggestions result to component
+    send_update(SocialScribeWeb.UserSettingsLive.HubspotUpdateModal,
+      id: "hubspot-update-modal",
+      suggestions_result: suggestions
+    )
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:suggestions_error, error}, socket) do
+    # Forward error to component
+    send_update(SocialScribeWeb.UserSettingsLive.HubspotUpdateModal,
+      id: "hubspot-update-modal",
+      suggestions_error: error
+    )
+
+    {:noreply, socket}
   end
 
   defp create_or_update_user_bot_preference(bot_preference, params) do
