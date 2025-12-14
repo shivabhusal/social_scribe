@@ -589,4 +589,50 @@ defmodule SocialScribe.AccountsTest do
                })
     end
   end
+
+  describe "HubSpot integration" do
+    import SocialScribe.HubspotFixtures
+
+    test "get_user_credential/2 returns hubspot credential when it exists" do
+      user = user_fixture()
+      credential = hubspot_credential_fixture(%{user_id: user.id})
+
+      assert Accounts.get_user_credential(user, "hubspot") == credential
+    end
+
+    test "get_user_credential/2 returns nil when hubspot credential does not exist" do
+      user = user_fixture()
+      assert Accounts.get_user_credential(user, "hubspot") == nil
+    end
+
+    test "list_user_credentials/2 returns hubspot credentials for user" do
+      user = user_fixture()
+      credential1 = hubspot_credential_fixture(%{user_id: user.id})
+      credential2 = hubspot_credential_fixture(%{user_id: user.id})
+
+      credentials = Accounts.list_user_credentials(user, provider: "hubspot")
+      assert length(credentials) == 2
+      assert credential1 in credentials
+      assert credential2 in credentials
+    end
+
+    test "list_user_credentials/2 returns empty list when no hubspot credentials exist" do
+      user = user_fixture()
+      assert Accounts.list_user_credentials(user, provider: "hubspot") == []
+    end
+
+    test "ensure_valid_hubspot_token/1 returns token when it's still valid" do
+      credential = hubspot_credential_fixture(%{
+        token: "valid_token",
+        expires_at: DateTime.add(DateTime.utc_now(), 3600, :second)
+      })
+
+      assert {:ok, "valid_token"} = Accounts.ensure_valid_hubspot_token(credential)
+    end
+
+    test "ensure_valid_hubspot_token/1 function exists and has correct arity" do
+      # Verify the function exists
+      assert function_exported?(Accounts, :ensure_valid_hubspot_token, 1)
+    end
+  end
 end

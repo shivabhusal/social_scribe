@@ -11,6 +11,7 @@ Mox.defmock(SocialScribe.AIContentGeneratorMock, for: SocialScribe.AIContentGene
 Application.put_env(:social_scribe, :google_calendar_api, SocialScribe.GoogleCalendarApiMock)
 Application.put_env(:social_scribe, :token_refresher_api, SocialScribe.TokenRefresherMock)
 Application.put_env(:social_scribe, :recall_api, SocialScribe.RecallApiMock)
+Application.put_env(:social_scribe, :gemini_api_key, "test_api_key")
 
 Application.put_env(
   :social_scribe,
