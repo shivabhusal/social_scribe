@@ -93,7 +93,30 @@
     
     <%= if Enum.any?(@hubspot_suggestions) do %>
       <div class="bg-white shadow-xl rounded-lg p-6 md:p-8">
-        <h2 class="text-2xl font-semibold mb-4 text-slate-700">AI-Generated HubSpot Contact Suggestions</h2>
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-2xl font-semibold text-slate-700">AI-Generated HubSpot Contact Suggestions</h2>
+          <button
+            type="button"
+            phx-click="refresh_ai_suggestions"
+            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            <svg
+              class="-ml-1 mr-2 h-4 w-4"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+            Fetch / Refresh AI Suggestions
+          </button>
+        </div>
         <p class="text-slate-600 mb-6">
           The following contact updates were suggested by AI based on this meeting transcript.
         </p>
@@ -128,7 +151,12 @@
                     <div>
                       <p class="text-xs text-slate-500 mb-1">Current Value</p>
                       <p class="text-sm text-slate-700 bg-slate-50 p-2 rounded">
-                        {format_value(suggestion["current_value"] || suggestion[:current_value])}
+                        <%= current_val = suggestion["current_value"] || suggestion[:current_value] %>
+                        <%= if current_val && current_val != "" do %>
+                          {current_val}
+                        <% else %>
+                          <span class="text-slate-400 italic">No existing value</span>
+                        <% end %>
                       </p>
                     </div>
                     <div>

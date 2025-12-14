@@ -484,8 +484,21 @@ defmodule SocialScribe.Meetings do
   defp format_transcript_for_prompt(transcript_segments) when is_list(transcript_segments) do
     Enum.map_join(transcript_segments, "\n", fn segment ->
       speaker = Map.get(segment, "speaker", "Unknown Speaker")
-      text = Enum.map_join(Map.get(segment, "words", []), " ", &Map.get(&1, "text", ""))
-      "#{speaker}: #{text}"
+      words = Map.get(segment, "words", [])
+      text = Enum.map_join(words, " ", &Map.get(&1, "text", ""))
+
+      # Extract timestamp from first word if available
+      timestamp_str =
+        case List.first(words) do
+          %{"start_timestamp" => start_ts} when is_number(start_ts) ->
+            minutes = div(trunc(start_ts), 60)
+            seconds = trunc(start_ts) - minutes * 60
+            "(#{minutes}:#{String.pad_leading(Integer.to_string(seconds), 2, "0")})"
+          _ ->
+            ""
+        end
+
+      "#{speaker}: #{text} #{timestamp_str}" |> String.trim()
     end)
   end
 

@@ -31,78 +31,72 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
       <% else %>
 
         <!-- Contact Search Section -->
-        <div class="mb-6">
-          <label class="block text-sm font-medium text-slate-700 mb-2">Select Contact</label>
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-slate-700">Select Contact</label>
 
-          <%= if @selected_contact do %>
-            <div class="flex items-center gap-3 p-3 border border-slate-300 rounded-md bg-white">
-              <div class="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-semibold text-sm">
-                <%= contact_initials(@selected_contact) %>
-              </div>
-              <div class="flex-1">
-                <div class="font-medium text-slate-900">
-                  <%= contact_name(@selected_contact) %>
+          <div class="relative">
+            <%= if @selected_contact do %>
+              <div class="mt-2 flex items-center gap-3 p-2 border border-slate-300 rounded-md bg-white">
+                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white font-semibold text-xs">
+                  <%= contact_initials(@selected_contact) %>
                 </div>
-                <div class="text-sm text-slate-500">
-                  <%= @selected_contact.properties["email"] || "No email" %>
+                <div class="flex-1 min-w-0">
+                  <div class="font-medium text-slate-900 text-sm truncate">
+                    <%= contact_name(@selected_contact) %> • <%= @selected_contact.properties["email"] || "No email" %>
+                  </div>
                 </div>
-              </div>
-              <button
-                type="button"
-                phx-click="clear_contact"
-                phx-target={@myself}
-                class="text-slate-400 hover:text-slate-600"
-              >
-                ✕
-              </button>
-            </div>
-          <% else %>
-
-            <.simple_form
-              for={@search_form}
-              as={:search}
-              phx-target={@myself}
-              phx-change="search_contacts"
-              phx-submit="fetch_contact_from_hubspot"
-            >
-              <.input
-                field={@search_form[:query]}
-                type="text"
-                placeholder="Search by name or email..."
-                phx-debounce="300"
-              />
-            </.simple_form>
-
-            <%= if @search_results do %>
-              <div class="mt-2 border border-slate-200 rounded-md bg-white max-h-60 overflow-y-auto shadow-lg z-10">
-                <div
-                  :for={contact <- @search_results}
-                  class="w-full"
+                <button
+                  type="button"
+                  phx-click="clear_contact"
+                  phx-target={@myself}
+                  class="text-slate-400 hover:text-slate-600 flex-shrink-0"
                 >
-                  <button
-                    type="button"
-                    class="w-full flex items-center gap-3 p-3 border-b border-slate-100 last:border-0 cursor-pointer hover:bg-slate-50 text-left bg-transparent"
-                    phx-click="select_contact"
-                    phx-value-contact-id={contact.id}
-                    phx-target={@myself}
-                  >
-                    <div class="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white font-semibold text-xs">
-                      <%= contact_initials(contact) %>
-                    </div>
-                    <div class="flex-1">
-                      <div class="font-medium text-slate-900 text-sm">
-                        <%= contact_name(contact) %>
-                      </div>
-                      <div class="text-xs text-slate-500">
-                        <%= contact.properties["email"] || "No email" %>
-                      </div>
-                    </div>
-                  </button>
-                </div>
+                  ✕
+                </button>
               </div>
-            <% end %>
+            <% else %>
+              <.simple_form
+                for={@search_form}
+                as={:search}
+                phx-target={@myself}
+                phx-change="search_contacts"
+                phx-submit="fetch_contact_from_hubspot"
+              >
+                <.input
+                  field={@search_form[:query]}
+                  type="text"
+                  placeholder="Search by name or email..."
+                  phx-debounce="300"
+                />
+              </.simple_form>
 
-          <% end %>
+              <%= if @search_results do %>
+                <div class="absolute top-full left-0 right-0 mt-1 border border-slate-200 rounded-md bg-white max-h-60 overflow-y-auto shadow-lg z-50">
+                  <div
+                    :for={contact <- @search_results}
+                    class="w-full"
+                  >
+                    <button
+                      type="button"
+                      class="w-full flex items-center gap-3 p-3 border-b border-slate-100 last:border-0 cursor-pointer hover:bg-slate-50 text-left bg-transparent"
+                      phx-click="select_contact"
+                      phx-value-contact-id={contact.id}
+                      phx-target={@myself}
+                    >
+                      <div class="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white font-semibold text-xs">
+                        <%= contact_initials(contact) %>
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <div class="font-medium text-slate-900 text-sm truncate">
+                          <%= contact_name(contact) %> • <%= contact.properties["email"] || "No email" %>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              <% end %>
+            <% end %>
+          </div>
         </div>
 
         <!-- Suggestions Section -->
@@ -130,7 +124,7 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
                     <% selected_count = count_selected_in_category(category_suggestions, @approved_suggestions) %>
                     <% all_selected = selected_count == length(category_suggestions) && length(category_suggestions) > 0 %>
 
-                    <div class="border border-slate-200 rounded-lg overflow-hidden">
+                    <div class="border border-slate-200 rounded-lg">
                       <!-- Category Header -->
                       <div class="bg-slate-50 px-4 py-3 border-b border-slate-200">
                         <div class="flex items-center justify-between">
@@ -146,25 +140,27 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
                               />
                             </label>
                             <h3 class="font-semibold text-slate-900"><%= category %></h3>
-                            <span class="text-sm text-slate-500">
+                          </div>
+                          <div class="flex items-center gap-3">
+                            <span class="text-sm text-slate-600 bg-slate-200 px-2 py-1 rounded">
                               <%= selected_count %> update<%= pluralize(selected_count) %> selected
                             </span>
+                            <button
+                              type="button"
+                              phx-click="toggle_category_expand"
+                              phx-value-category={category_key}
+                              phx-target={@myself}
+                              class="text-sm text-slate-600 hover:text-slate-900"
+                            >
+                              <%= if expanded, do: "Hide details", else: "Show details" %>
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            phx-click="toggle_category_expand"
-                            phx-value-category={category_key}
-                            phx-target={@myself}
-                            class="text-sm text-slate-600 hover:text-slate-900"
-                          >
-                            <%= if expanded, do: "Hide details", else: "Show details" %>
-                          </button>
                         </div>
                       </div>
 
                       <!-- Category Fields -->
                       <%= if expanded do %>
-                        <div class="bg-white divide-y divide-slate-100">
+                        <div class="bg-white divide-y divide-slate-100 overflow-visible">
                           <div
                             :for={suggestion <- category_suggestions}
                             class="px-4 py-4"
@@ -184,37 +180,89 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
                                 <div class="font-medium text-slate-900 mb-3">
                                   <%= format_field_name(suggestion.field) %>
                                 </div>
-                                <div class="grid grid-cols-2 gap-4 mb-3">
-                                  <div>
+                                <div class="flex items-start gap-3 mb-3">
+                                  <div class="flex-1 flex flex-col">
                                     <input
                                       type="text"
-                                      value={format_value(suggestion.current_value)}
+                                      value={if suggestion.current_value && suggestion.current_value != "", do: to_string(suggestion.current_value), else: ""}
+                                      placeholder="No existing value"
                                       readonly
-                                      class="w-full px-3 py-2 border border-slate-300 rounded-md bg-slate-50 text-slate-700 text-sm line-through"
+                                      class={"w-full px-3 py-2 border border-slate-300 rounded-md bg-slate-50 text-slate-500 text-sm#{if suggestion.current_value && suggestion.current_value != "", do: " line-through", else: ""}"}
                                     />
+                                    <button
+                                      type="button"
+                                      phx-click="toggle_field_editable"
+                                      phx-value-field={suggestion.field}
+                                      phx-target={@myself}
+                                      class={"mt-1 text-xs text-blue-600 hover:text-blue-800 self-start#{if Map.get(@editable_fields, suggestion.field, false), do: " font-medium", else: ""}"}
+                                    >
+                                      Update mapping
+                                    </button>
                                   </div>
-                                  <div class="flex items-center gap-2">
-                                    <span class="text-slate-400">→</span>
-                                    <form phx-change="edit_suggested_value" phx-target={@myself} phx-debounce="300">
-                                      <input
-                                        type="hidden"
-                                        name="field"
-                                        value={suggestion.field}
-                                      />
+                                  <div class="flex items-center pt-2">
+                                    <span class="text-slate-600 text-xl font-bold">→</span>
+                                  </div>
+                                  <div class="flex-1 flex flex-col">
+                                    <%= if Map.get(@editable_fields, suggestion.field, false) do %>
+                                      <form phx-change="edit_suggested_value" phx-target={@myself} phx-debounce="300" class="flex-1 flex flex-col">
+                                        <input
+                                          type="hidden"
+                                          name="field"
+                                          value={suggestion.field}
+                                        />
+                                        <input
+                                          type="text"
+                                          name="suggested_value"
+                                          value={format_value(Map.get(@edited_suggestions, suggestion.field, suggestion.suggested_value))}
+                                          class="w-full px-3 py-2 border border-slate-300 rounded-md bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                        />
+                                      </form>
+                                    <% else %>
                                       <input
                                         type="text"
-                                        name="suggested_value"
                                         value={format_value(Map.get(@edited_suggestions, suggestion.field, suggestion.suggested_value))}
-                                        class="flex-1 px-3 py-2 border border-indigo-300 rounded-md bg-indigo-50 text-indigo-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                        disabled
+                                        class="w-full px-3 py-2 border border-slate-300 rounded-md bg-slate-50 text-slate-400 text-sm cursor-not-allowed"
                                       />
-                                    </form>
+                                    <% end %>
+                                    <%= if suggestion.evidence && suggestion.evidence != "" do %>
+                                      <div class="mt-2 text-xs text-slate-500">
+                                        <%= if suggestion.timestamp && suggestion.timestamp != "" do %>
+                                          <% time_str = format_timestamp(suggestion.timestamp) %>
+                                          <div class="relative">
+                                            Found in transcript
+                                            <button
+                                              type="button"
+                                              phx-click="show_evidence_tooltip"
+                                              phx-value-field={suggestion.field}
+                                              phx-target={@myself}
+                                              class="text-blue-600 hover:text-blue-800 underline cursor-pointer ml-1"
+                                            >
+                                              (<%= time_str %>)
+                                            </button>
+                                            <%= if Map.get(@evidence_tooltips || %{}, suggestion.field) do %>
+                                              <div class="absolute left-0 top-full mt-1 z-[9999] w-80 p-3 bg-slate-800 text-white text-xs rounded-md shadow-xl border border-slate-700">
+                                                <div class="font-semibold mb-1">Found in transcript:</div>
+                                                <div class="italic">"{suggestion.evidence}"</div>
+                                                <button
+                                                  type="button"
+                                                  phx-click="show_evidence_tooltip"
+                                                  phx-value-field={suggestion.field}
+                                                  phx-target={@myself}
+                                                  class="mt-2 text-blue-300 hover:text-blue-100 text-xs underline"
+                                                >
+                                                  Close
+                                                </button>
+                                              </div>
+                                            <% end %>
+                                          </div>
+                                        <% else %>
+                                          Found in transcript: <span class="ml-1 italic">"{suggestion.evidence}"</span>
+                                        <% end %>
+                                      </div>
+                                    <% end %>
                                   </div>
                                 </div>
-                                <%= if suggestion.evidence && suggestion.evidence != "" do %>
-                                  <div class="text-xs text-slate-500">
-                                    Found in transcript: <span class="italic">"{suggestion.evidence}"</span>
-                                  </div>
-                                <% end %>
                               </div>
                             </div>
                           </div>
@@ -303,6 +351,8 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
       |> assign_new(:suggestions_error, fn -> nil end)
       |> assign_new(:approved_suggestions, fn -> %{} end)
       |> assign_new(:edited_suggestions, fn -> %{} end)
+      |> assign_new(:editable_fields, fn -> %{} end)
+      |> assign_new(:evidence_tooltips, fn -> %{} end)
       |> assign_new(:expanded_categories, fn -> %{} end)
       |> assign_new(:update_success, fn -> false end)
       |> assign_new(:update_error, fn -> nil end)
@@ -356,7 +406,8 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
                 field: field_atom,
                 current_value: nil,  # Always nil when no contact is selected
                 suggested_value: suggestion["suggested_value"] || suggestion[:suggested_value] || "",
-                evidence: suggestion["evidence"] || suggestion[:evidence] || ""
+                evidence: suggestion["evidence"] || suggestion[:evidence] || "",
+                timestamp: suggestion["timestamp"] || suggestion[:timestamp] || nil
               }
             end)
             |> Enum.filter(fn s -> s.field != :"" end)
@@ -366,6 +417,7 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
           |> assign(:loading_suggestions, false)
           |> assign(:suggestions_error, nil)
           |> assign(:using_cached_suggestions, true)
+          |> assign(:editable_fields, %{})
         else
           # No cache, generate suggestions
           if connected?(socket) do
@@ -399,7 +451,8 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
                     field: suggestion.field,
                     current_value: nil,
                     suggested_value: suggestion.suggested_value,
-                    evidence: suggestion.evidence || ""
+                    evidence: suggestion.evidence || "",
+                    timestamp: suggestion.timestamp || nil
                   }
                 end)
 
@@ -413,7 +466,8 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
                     "field" => Atom.to_string(suggestion.field),
                     "current_value" => suggestion.current_value,
                     "suggested_value" => suggestion.suggested_value,
-                    "evidence" => suggestion.evidence
+                    "evidence" => suggestion.evidence,
+                    "timestamp" => suggestion.timestamp
                   }
                 end)
 
@@ -448,6 +502,7 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
           |> assign(:selected_contact, contact)
           |> assign(:approved_suggestions, %{})
           |> assign(:edited_suggestions, %{})
+          |> assign(:editable_fields, %{})
           |> assign(:suggestions_error, nil)
           |> assign(:update_success, false)
           |> assign(:update_error, nil)
@@ -473,7 +528,8 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
             %{
               "field" => Atom.to_string(suggestion.field),
               "suggested_value" => suggestion.suggested_value,
-              "evidence" => suggestion.evidence || ""
+              "evidence" => suggestion.evidence || "",
+              "timestamp" => suggestion.timestamp || nil
             }
           end)
         end
@@ -510,6 +566,12 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
                   suggestion["evidence"] || suggestion[:evidence] || ""
                 else
                   suggestion.evidence || ""
+                end,
+              timestamp:
+                if is_map(suggestion) do
+                  suggestion["timestamp"] || suggestion[:timestamp] || nil
+                else
+                  Map.get(suggestion, :timestamp) || nil
                 end
             }
           end)
@@ -589,7 +651,8 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
                       "field" => Atom.to_string(suggestion.field),
                       "current_value" => suggestion.current_value,
                       "suggested_value" => suggestion.suggested_value,
-                      "evidence" => suggestion.evidence
+                      "evidence" => suggestion.evidence,
+                      "timestamp" => suggestion.timestamp
                     }
                   end)
 
@@ -879,6 +942,42 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
   end
 
   @impl true
+  def handle_event("show_evidence_tooltip", %{"field" => field}, socket) do
+    # Find the suggestion with this field
+    suggestion = Enum.find(socket.assigns.suggestions, fn s -> to_string(s.field) == field end)
+
+    tooltip_text = if suggestion && suggestion.evidence, do: suggestion.evidence, else: ""
+
+    # Toggle tooltip visibility for this field
+    current_tooltips = socket.assigns[:evidence_tooltips] || %{}
+    field_atom = String.to_atom(field)
+
+    new_tooltips =
+      if Map.has_key?(current_tooltips, field_atom) do
+        Map.delete(current_tooltips, field_atom)
+      else
+        Map.put(current_tooltips, field_atom, tooltip_text)
+      end
+
+    {:noreply, assign(socket, :evidence_tooltips, new_tooltips)}
+  end
+
+  @impl true
+  def handle_event("toggle_field_editable", %{"field" => field}, socket) do
+    field_atom = String.to_atom(field)
+    current_editable = socket.assigns.editable_fields
+
+    new_editable =
+      if Map.has_key?(current_editable, field_atom) do
+        Map.delete(current_editable, field_atom)
+      else
+        Map.put(current_editable, field_atom, true)
+      end
+
+    {:noreply, assign(socket, :editable_fields, new_editable)}
+  end
+
+  @impl true
   def handle_event("toggle_suggestion", %{"field" => field}, socket) do
     field_atom = String.to_atom(field)
     current_approved = socket.assigns.approved_suggestions
@@ -950,6 +1049,7 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
      |> assign(:suggestions, updated_suggestions)
      |> assign(:approved_suggestions, %{})
      |> assign(:edited_suggestions, %{})
+     |> assign(:editable_fields, %{})
      |> assign(:search_results, nil)
      |> assign(:search_form, cleared_search_form)}
   end
@@ -973,6 +1073,7 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
         |> assign(:suggestions, [])
         |> assign(:approved_suggestions, %{})
         |> assign(:edited_suggestions, %{})
+        |> assign(:editable_fields, %{})
         |> assign(:loading_suggestions, true)
         |> assign(:suggestions_error, nil)
         |> assign(:using_cached_suggestions, false)
@@ -1048,7 +1149,8 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
                  |> assign(:selected_contact, updated_selected_contact)
                  |> assign(:suggestions, updated_suggestions)
                  |> assign(:approved_suggestions, %{})
-                 |> assign(:edited_suggestions, %{})}
+                 |> assign(:edited_suggestions, %{})
+                 |> assign(:editable_fields, %{})}
 
               {:error, reason} ->
                 error_message = format_error(reason)
@@ -1093,7 +1195,8 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
               "field" => Atom.to_string(suggestion.field),
               "current_value" => suggestion.current_value,
               "suggested_value" => suggestion.suggested_value,
-              "evidence" => suggestion.evidence
+              "evidence" => suggestion.evidence,
+              "timestamp" => suggestion.timestamp
             }
           end)
 
@@ -1163,8 +1266,8 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
     |> Enum.join(" ")
   end
 
-  defp format_value(nil), do: "(empty)"
-  defp format_value(""), do: "(empty)"
+  defp format_value(nil), do: ""
+  defp format_value(""), do: ""
   defp format_value(value), do: to_string(value)
 
   defp format_error({:api_error, status, message, _body}) do
@@ -1230,4 +1333,32 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
 
   defp pluralize_selected(1), do: ""
   defp pluralize_selected(_), do: "s"
+
+  defp format_timestamp(timestamp) when is_binary(timestamp) do
+    # Parse timestamp in format like "(15:12)" or "15:12" or "15min, 12sec"
+    # Pattern 1: Look for (MM:SS) or MM:SS format
+    case Regex.run(~r/\(?(\d+):(\d+)\)?/, timestamp) do
+      [_, minutes_str, seconds_str] ->
+        {minutes, _} = Integer.parse(minutes_str)
+        {seconds, _} = Integer.parse(seconds_str)
+        format_time_minutes_seconds(minutes, seconds)
+      nil ->
+        # Pattern 2: Look for (MMmin, SSsec) format
+        case Regex.run(~r/\((\d+)\s*(?:min|minutes?)[,\s]+(\d+)\s*(?:sec|seconds?)\)/i, timestamp) do
+          [_, minutes_str, seconds_str] ->
+            {minutes, _} = Integer.parse(minutes_str)
+            {seconds, _} = Integer.parse(seconds_str)
+            format_time_minutes_seconds(minutes, seconds)
+          nil ->
+            # If we can't parse it, return as-is
+            timestamp
+        end
+    end
+  end
+
+  defp format_timestamp(_), do: nil
+
+  defp format_time_minutes_seconds(minutes, seconds) do
+    "#{String.pad_leading(Integer.to_string(minutes), 2, "0")}:#{String.pad_leading(Integer.to_string(seconds), 2, "0")}"
+  end
 end

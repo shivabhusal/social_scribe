@@ -62,7 +62,7 @@ defmodule SocialScribeWeb.UserSettingsLive.HubspotUpdateModal do
           <!-- Contact Search -->
           <%= if @selected_meeting do %>
             <div class="mb-6">
-              <label class="block text-sm font-medium text-slate-700 mb-2">Select Contact</label>
+              <label class="block text-sm font-medium text-slate-700">Select Contact</label>
               <div class="relative">
                   <.input
                   type="text"

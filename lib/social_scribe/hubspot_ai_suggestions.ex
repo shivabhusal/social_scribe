@@ -47,7 +47,8 @@ defmodule SocialScribe.HubspotAISuggestions do
            "field": "field_name",
            "current_value": "current value or null",
            "suggested_value": "suggested value from transcript",
-           "evidence": "exact quote from transcript supporting this update"
+           "evidence": "exact quote from transcript supporting this update, including speaker name and timestamp in format (MM:SS) if available, e.g., \"Maria Garcia: My new email address is maria.garcia.new@company.com.\"",
+           "timestamp": "tentative time at which that update was made like (15:12)"
          }
        ]
     6. If no updates can be suggested, return an empty array: []
@@ -117,7 +118,8 @@ defmodule SocialScribe.HubspotAISuggestions do
               field: String.to_atom(suggestion["field"]),
               current_value: suggestion["current_value"],
               suggested_value: suggestion["suggested_value"],
-              evidence: suggestion["evidence"] || ""
+              evidence: suggestion["evidence"] || "",
+              timestamp: suggestion["timestamp"] || nil
             }
           end)
 

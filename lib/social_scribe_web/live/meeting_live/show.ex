@@ -7,6 +7,7 @@ defmodule SocialScribeWeb.MeetingLive.Show do
   alias SocialScribe.Meetings
   alias SocialScribe.Automations
   alias SocialScribe.HubspotSuggestions
+  alias SocialScribe.HubspotAISuggestions
 
   @impl true
   def mount(%{"id" => meeting_id}, _session, socket) do
@@ -69,6 +70,90 @@ defmodule SocialScribeWeb.MeetingLive.Show do
     socket =
       socket
       |> assign(:follow_up_email_form, to_form(params))
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("refresh_ai_suggestions", _params, socket) do
+    meeting = socket.assigns.meeting
+    meeting_id = meeting.id
+    user_id = socket.assigns.current_user.id
+    parent_pid = self()
+
+    # Generate suggestions asynchronously
+    Task.start(fn ->
+      case HubspotAISuggestions.generate_suggestions(meeting) do
+        {:ok, suggestions} ->
+          # Convert suggestions to the format expected by save_suggestions
+          suggestions_for_cache =
+            Enum.map(suggestions, fn suggestion ->
+              %{
+                "field" => Atom.to_string(suggestion.field),
+                "current_value" => suggestion.current_value,
+                "suggested_value" => suggestion.suggested_value,
+                "evidence" => suggestion.evidence || "",
+                "timestamp" => suggestion.timestamp || nil
+              }
+            end)
+
+          # Use placeholder contact_id for meeting-level suggestions
+          placeholder_contact_id = "meeting_#{meeting_id}"
+
+          HubspotSuggestions.save_suggestions(
+            meeting_id,
+            placeholder_contact_id,
+            %{"suggestions" => suggestions_for_cache},
+            user_id
+          )
+
+          send(parent_pid, {:suggestions_refreshed, meeting_id})
+
+        {:error, reason} ->
+          send(parent_pid, {:suggestions_refresh_error, format_error(reason)})
+      end
+    end)
+
+    socket =
+      socket
+      |> put_flash(:info, "Refreshing AI suggestions...")
+
+    {:noreply, socket}
+  end
+
+  defp format_error({:api_error, status, error_body}) do
+    "HubSpot API error (#{status}): #{inspect(error_body)}"
+  end
+
+  defp format_error({:http_error, reason}) do
+    "Network error: #{inspect(reason)}"
+  end
+
+  defp format_error({:parsing_error, message, _body}) do
+    "Error parsing response: #{message}"
+  end
+
+  defp format_error(reason) do
+    "Error: #{inspect(reason)}"
+  end
+
+  @impl true
+  def handle_info({:suggestions_refreshed, meeting_id}, socket) do
+    hubspot_suggestions = HubspotSuggestions.list_suggestions_for_meeting(meeting_id)
+
+    socket =
+      socket
+      |> assign(:hubspot_suggestions, hubspot_suggestions)
+      |> put_flash(:info, "AI suggestions refreshed!")
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:suggestions_refresh_error, error_message}, socket) do
+    socket =
+      socket
+      |> put_flash(:error, "Failed to refresh AI suggestions: #{error_message}")
 
     {:noreply, socket}
   end
@@ -200,8 +285,8 @@ defmodule SocialScribeWeb.MeetingLive.Show do
 
   defp format_field_name(_), do: "Unknown Field"
 
-  defp format_value(nil), do: "(empty)"
-  defp format_value(""), do: "(empty)"
+  defp format_value(nil), do: ""
+  defp format_value(""), do: ""
   defp format_value(value) when is_binary(value), do: value
   defp format_value(value), do: to_string(value)
 
