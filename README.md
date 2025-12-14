@@ -10,6 +10,9 @@ Social Scribe is a powerful Elixir and Phoenix LiveView application designed to 
 
 ---
 
+- [Link To New Features Added Doc](FEATURES.md)
+- [Link To New Requirements Doc](NEW_REQUIREMENTS.md)
+
 ## 🌟 Key Features Implemented
 
 * **Google Calendar Integration:**
