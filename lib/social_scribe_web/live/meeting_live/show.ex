@@ -74,6 +74,28 @@ defmodule SocialScribeWeb.MeetingLive.Show do
   end
 
   @impl true
+  def handle_info({:contact_loaded, component_id, contact, updated_credential, cached_suggestions}, socket) do
+    # Forward contact loaded message to component
+    send_update(SocialScribeWeb.MeetingLive.HubspotUpdateComponent,
+      id: "hubspot-update-#{socket.assigns.meeting.id}",
+      contact_loaded: {contact, updated_credential, cached_suggestions}
+    )
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:contact_load_error, _component_id, error_message}, socket) do
+    # Forward error to component
+    send_update(SocialScribeWeb.MeetingLive.HubspotUpdateComponent,
+      id: "hubspot-update-#{socket.assigns.meeting.id}",
+      contact_load_error: error_message
+    )
+
+    {:noreply, socket}
+  end
+
+  @impl true
   def handle_info({:generate_suggestions_for_component, contact}, socket) do
     # Forward message to HubSpot update component via send_update
     send_update(SocialScribeWeb.MeetingLive.HubspotUpdateComponent,

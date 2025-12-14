@@ -5,15 +5,18 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
   alias SocialScribe.HubspotApi
   alias SocialScribe.HubspotAISuggestions
   alias SocialScribe.HubspotSuggestions
+  alias SocialScribe.HubspotContactCache
 
   @impl true
   def render(assigns) do
     ~H"""
     <div class="max-w-4xl">
-      <.header>
-        Update HubSpot Contact
-        <:subtitle>Review AI-suggested CRM updates from this meeting transcript.</:subtitle>
-      </.header>
+      <div class="mb-6">
+        <h2 class="text-2xl font-semibold text-slate-900 mb-2">Update in HubSpot</h2>
+        <p class="text-slate-600">
+          Here are suggested updates to sync with your integrations based on this meeting.
+        </p>
+      </div>
 
       <%= if not @hubspot_connected do %>
         <div class="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
@@ -30,144 +33,238 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
         </div>
       <% else %>
         <!-- Contact Search Section -->
-        <div class="mt-6">
-          <h3 class="text-lg font-semibold text-slate-700 mb-3">Select Contact</h3>
-          <.simple_form
-            for={@search_form}
-            phx-target={@myself}
-            phx-submit="search_contacts"
-          >
-            <.input
-              field={@search_form[:query]}
-              type="text"
-              placeholder="Search by name or email..."
-              phx-debounce="300"
-            />
-            <:actions>
-              <.button type="submit" phx-disable-with="Searching...">Search</.button>
-            </:actions>
-          </.simple_form>
-
-          <%= if @search_results do %>
-            <div class="mt-4 space-y-2">
-              <div
-                :for={contact <- @search_results}
-                class="p-3 border rounded-md cursor-pointer hover:bg-slate-50"
-                phx-click="select_contact"
-                phx-value-contact-id={contact.id}
-                phx-target={@myself}
-              >
-                <div class="font-medium text-slate-700">
-                  <%= contact_name(contact) %>
-                </div>
+        <div class="mb-6">
+          <label class="block text-sm font-medium text-slate-700 mb-2">Select Contact</label>
+          <%= if @selected_contact do %>
+            <div class="flex items-center gap-3 p-3 border border-slate-300 rounded-md bg-white">
+              <div class="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-semibold text-sm">
+                <%= contact_initials(@selected_contact) %>
+              </div>
+              <div class="flex-1">
+                <div class="font-medium text-slate-900"><%= contact_name(@selected_contact) %></div>
                 <div class="text-sm text-slate-500">
-                  <%= contact.properties["email"] || "No email" %>
+                  <%= @selected_contact.properties["email"] || "No email" %>
                 </div>
               </div>
+              <button
+                type="button"
+                phx-click="clear_contact"
+                phx-target={@myself}
+                class="text-slate-400 hover:text-slate-600"
+              >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
-          <% end %>
+          <% else %>
+            <div class="space-y-3">
+              <.simple_form
+                for={@search_form}
+                as={:search}
+                phx-target={@myself}
+                phx-change="search_contacts"
+                phx-submit="fetch_contact_from_hubspot"
+              >
+                <.input
+                  field={@search_form[:query]}
+                  type="text"
+                  placeholder="Search by name or email... (type at least 3 characters)"
+                  phx-debounce="300"
+                />
+              </.simple_form>
+              <%= if Map.get(assigns, :using_cache, false) && @search_results do %>
+                <p class="text-xs text-slate-500 italic">Showing cached results</p>
+              <% end %>
+            </div>
 
-          <%= if @search_error do %>
-            <div class="mt-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-800">
-              {@search_error}
-            </div>
+            <%= if @search_results do %>
+              <div class="mt-2 border border-slate-200 rounded-md bg-white max-h-60 overflow-y-auto shadow-lg z-10">
+                <div
+                  :for={contact <- @search_results}
+                  class="w-full"
+                >
+                  <button
+                    type="button"
+                    class="w-full flex items-center gap-3 p-3 border-b border-slate-100 last:border-0 cursor-pointer hover:bg-slate-50 text-left bg-transparent"
+                    phx-click="select_contact"
+                    phx-value-contact-id={contact.id}
+                    phx-target={@myself}
+                  >
+                    <div class="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white font-semibold text-xs">
+                      <%= contact_initials(contact) %>
+                    </div>
+                    <div class="flex-1">
+                      <div class="font-medium text-slate-900 text-sm">
+                        <%= contact_name(contact) %>
+                      </div>
+                      <div class="text-xs text-slate-500">
+                        <%= contact.properties["email"] || "No email" %>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            <% end %>
+
+            <%= if @search_error do %>
+              <div class="mt-2 p-3 bg-red-50 border border-red-200 rounded-md text-red-800 text-sm">
+                {@search_error}
+              </div>
+            <% end %>
           <% end %>
         </div>
 
-        <!-- Selected Contact and Suggestions -->
-        <%= if @selected_contact do %>
-          <div class="mt-6 p-4 bg-slate-50 rounded-md">
-            <h3 class="text-lg font-semibold text-slate-700 mb-2">Selected Contact</h3>
-            <p class="text-slate-700">
-              <strong>{contact_name(@selected_contact)}</strong>
-              <%= if @selected_contact.properties["email"] do %>
-                <span class="text-slate-500"> - {@selected_contact.properties["email"]}</span>
-              <% end %>
-            </p>
+        <!-- Loading Contact State -->
+        <%= if Map.get(assigns, :loading_contact, false) do %>
+          <div class="py-8 text-center">
+            <p class="text-slate-600">Loading contact details...</p>
           </div>
+        <% end %>
 
+        <!-- Suggestions Section -->
+        <%= if @selected_contact do %>
           <%= if @loading_suggestions do %>
-            <div class="mt-6 p-4 text-center">
+            <div class="py-8 text-center">
               <p class="text-slate-600">Generating AI suggestions...</p>
             </div>
           <% else %>
             <%= if @suggestions_error do %>
-              <div class="mt-6 p-4 bg-red-50 border border-red-200 rounded-md text-red-800">
+              <div class="p-4 bg-red-50 border border-red-200 rounded-md text-red-800">
                 {@suggestions_error}
               </div>
             <% else %>
               <%= if Enum.empty?(@suggestions) do %>
-                <div class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-md text-blue-800">
+                <div class="p-4 bg-blue-50 border border-blue-200 rounded-md text-blue-800">
                   No updates suggested. The transcript doesn't contain explicit information that would update this contact.
                 </div>
               <% else %>
-                <!-- Suggestions Review Section -->
-                <div class="mt-6">
-                  <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-lg font-semibold text-slate-700">Suggested Updates</h3>
-                    <div class="flex items-center gap-3">
-                      <%= if @using_cached_suggestions do %>
-                        <span class="text-xs text-slate-500 italic">Using cached suggestions</span>
-                      <% end %>
-                      <.button
-                        phx-click="refetch_suggestions"
-                        phx-target={@myself}
-                        phx-disable-with="Refetching..."
-                        class="text-sm px-3 py-1 border border-slate-300 rounded-md text-slate-700 bg-white hover:bg-slate-50"
-                      >
-                        Refetch from AI
-                      </.button>
-                    </div>
-                  </div>
-                  <div class="space-y-4">
-                    <div
-                      :for={suggestion <- @suggestions}
-                      class="p-4 border rounded-md"
-                    >
-                      <div class="flex items-start justify-between">
-                        <div class="flex-1">
-                          <div class="font-medium text-slate-700 mb-2">
-                            {format_field_name(suggestion.field)}
-                          </div>
-                          <div class="text-sm text-slate-600 mb-1">
-                            <strong>Current:</strong> {format_value(suggestion.current_value)}
-                          </div>
-                          <div class="text-sm text-slate-600 mb-2">
-                            <strong>Suggested:</strong> {format_value(suggestion.suggested_value)}
-                          </div>
-                          <%= if suggestion.evidence && suggestion.evidence != "" do %>
-                            <div class="text-xs text-slate-500 italic mt-2">
-                              Evidence: "{suggestion.evidence}"
-                            </div>
-                          <% end %>
-                        </div>
-                        <label class="relative inline-flex items-center cursor-pointer ml-4">
-                          <input
-                            type="checkbox"
-                            class="sr-only peer"
-                            checked={Map.get(@approved_suggestions, suggestion.field, false)}
-                            phx-click="toggle_suggestion"
-                            phx-value-field={suggestion.field}
-                            phx-target={@myself}
-                          />
-                          <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600">
-                          </div>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
+                <div class="space-y-4">
+                  <%= for {category, category_suggestions} <- group_suggestions_by_category(@suggestions) do %>
+                    <% category_key = category_to_key(category) %>
+                    <% expanded = Map.get(@expanded_categories, category_key, true) %>
+                    <% selected_count = count_selected_in_category(category_suggestions, @approved_suggestions) %>
+                    <% all_selected = selected_count == length(category_suggestions) && length(category_suggestions) > 0 %>
 
-                  <!-- Update Button -->
-                  <div class="mt-6 flex justify-end">
-                    <.button
+                    <div class="border border-slate-200 rounded-lg overflow-hidden">
+                      <!-- Category Header -->
+                      <div class="bg-slate-50 px-4 py-3 border-b border-slate-200">
+                        <div class="flex items-center justify-between">
+                          <div class="flex items-center gap-3">
+                            <label class="flex items-center cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={all_selected}
+                                phx-click="toggle_category"
+                                phx-value-category={category_key}
+                                phx-target={@myself}
+                                class="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                              />
+                            </label>
+                            <h3 class="font-semibold text-slate-900"><%= category %></h3>
+                            <span class="text-sm text-slate-500">
+                              <%= selected_count %> update<%= pluralize(selected_count) %> selected
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            phx-click="toggle_category_expand"
+                            phx-value-category={category_key}
+                            phx-target={@myself}
+                            class="text-sm text-slate-600 hover:text-slate-900"
+                          >
+                            <%= if expanded, do: "Hide details", else: "Show details" %>
+                          </button>
+                        </div>
+                      </div>
+
+                      <!-- Category Fields -->
+                      <%= if expanded do %>
+                        <div class="bg-white divide-y divide-slate-100">
+                          <div
+                            :for={suggestion <- category_suggestions}
+                            class="px-4 py-4"
+                          >
+                            <div class="flex items-start gap-4">
+                              <label class="flex items-center pt-1">
+                                <input
+                                  type="checkbox"
+                                  checked={Map.get(@approved_suggestions, suggestion.field, false)}
+                                  phx-click="toggle_suggestion"
+                                  phx-value-field={suggestion.field}
+                                  phx-target={@myself}
+                                  class="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                                />
+                              </label>
+                              <div class="flex-1">
+                              <div class="font-medium text-slate-900 mb-3">
+                                <%= format_field_name(suggestion.field) %>
+                              </div>
+                                <div class="grid grid-cols-2 gap-4 mb-3">
+                                  <div>
+                                    <input
+                                      type="text"
+                                      value={format_value(suggestion.current_value)}
+                                      readonly
+                                      class="w-full px-3 py-2 border border-slate-300 rounded-md bg-slate-50 text-slate-700 text-sm"
+                                    />
+                                  </div>
+                                  <div class="flex items-center gap-2">
+                                    <span class="text-slate-400">→</span>
+                                    <form phx-change="edit_suggested_value" phx-target={@myself} phx-debounce="300">
+                                      <input
+                                        type="hidden"
+                                        name="field"
+                                        value={suggestion.field}
+                                      />
+                                      <input
+                                        type="text"
+                                        name="suggested_value"
+                                        value={format_value(Map.get(@edited_suggestions, suggestion.field, suggestion.suggested_value))}
+                                        class="flex-1 px-3 py-2 border border-indigo-300 rounded-md bg-indigo-50 text-indigo-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                      />
+                                    </form>
+                                  </div>
+                                </div>
+                                <%= if suggestion.evidence && suggestion.evidence != "" do %>
+                                  <div class="text-xs text-slate-500">
+                                    Found in transcript: <span class="italic">"{suggestion.evidence}"</span>
+                                  </div>
+                                <% end %>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      <% end %>
+                    </div>
+                  <% end %>
+                </div>
+
+                <!-- Footer Summary and Actions -->
+                <div class="mt-6 pt-4 border-t border-slate-200 flex items-center justify-between">
+                  <div class="text-sm text-slate-600">
+                    <%= count_total_selected(@suggestions, @approved_suggestions) %> field<%= pluralize_selected(count_total_selected(@suggestions, @approved_suggestions)) %> selected to update
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <button
+                      type="button"
+                      phx-click="cancel"
+                      phx-target={@myself}
+                      class="px-4 py-2 border border-slate-300 rounded-md text-slate-700 bg-white hover:bg-slate-50 font-medium"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
                       phx-click="update_hubspot"
                       phx-target={@myself}
                       phx-disable-with="Updating..."
                       disabled={Enum.empty?(@approved_suggestions)}
-                      class="disabled:opacity-50 disabled:cursor-not-allowed"
+                      class="px-4 py-2 rounded-md text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      style="background-color: #10b981;"
                     >
                       Update HubSpot
-                    </.button>
+                    </button>
                   </div>
                 </div>
               <% end %>
@@ -200,17 +297,21 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
     # Only initialize state if not already set (preserve existing state)
     socket =
       socket
-      |> assign_new(:search_form, fn -> to_form(%{"query" => ""}) end)
+      |> assign_new(:search_form, fn -> to_form(%{"query" => ""}, as: :search) end)
       |> assign_new(:search_results, fn -> nil end)
       |> assign_new(:search_error, fn -> nil end)
       |> assign_new(:selected_contact, fn -> nil end)
+      |> assign_new(:loading_contact, fn -> false end)
       |> assign_new(:suggestions, fn -> [] end)
       |> assign_new(:loading_suggestions, fn -> false end)
       |> assign_new(:suggestions_error, fn -> nil end)
       |> assign_new(:approved_suggestions, fn -> %{} end)
+      |> assign_new(:edited_suggestions, fn -> %{} end)
+      |> assign_new(:expanded_categories, fn -> %{} end)
       |> assign_new(:update_success, fn -> false end)
       |> assign_new(:update_error, fn -> nil end)
       |> assign_new(:using_cached_suggestions, fn -> false end)
+      |> assign_new(:using_cache, fn -> false end)
 
     # Always update hubspot_credential (it might change)
     hubspot_credential =
@@ -220,6 +321,83 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
       socket
       |> assign(:hubspot_connected, not is_nil(hubspot_credential))
       |> assign(:hubspot_credential, hubspot_credential)
+
+    # Handle contact loaded from async task
+    socket =
+      if contact_data = Map.get(socket.assigns, :contact_loaded) do
+        {contact, updated_credential, cached_suggestions} = contact_data
+        socket = assign(socket, :contact_loaded, nil)
+        socket = assign(socket, :loading_contact, false)
+
+        socket =
+          socket
+          |> assign(:selected_contact, contact)
+          |> assign(:suggestions, [])
+          |> assign(:approved_suggestions, %{})
+          |> assign(:edited_suggestions, %{})
+          |> assign(:loading_suggestions, true)
+          |> assign(:suggestions_error, nil)
+          |> assign(:update_success, false)
+          |> assign(:update_error, nil)
+          |> assign(:hubspot_credential, updated_credential)
+
+        if cached_suggestions do
+          # Use cached suggestions
+          suggestions =
+            case cached_suggestions.suggestions do
+              %{"suggestions" => s} -> s
+              %{suggestions: s} -> s
+              s when is_list(s) -> s
+              _ -> []
+            end
+
+          current_values = contact.properties
+
+          suggestions_with_current =
+            Enum.map(suggestions, fn suggestion ->
+              field_str =
+                suggestion["field"] ||
+                suggestion[:field] ||
+                (if is_atom(suggestion["field"]), do: Atom.to_string(suggestion["field"]), else: nil) ||
+                ""
+
+              field_atom = String.to_atom(field_str)
+              current_value = Map.get(current_values, field_str)
+
+              %{
+                field: field_atom,
+                current_value: current_value,
+                suggested_value: suggestion["suggested_value"] || suggestion[:suggested_value] || "",
+                evidence: suggestion["evidence"] || suggestion[:evidence] || ""
+              }
+            end)
+            |> Enum.filter(fn s -> s.field != :"" end)
+
+          socket
+          |> assign(:suggestions, suggestions_with_current)
+          |> assign(:loading_suggestions, false)
+          |> assign(:suggestions_error, nil)
+          |> assign(:using_cached_suggestions, true)
+        else
+          # No cache, generate suggestions asynchronously
+          send(self(), {:generate_suggestions_for_component, contact})
+          socket
+        end
+      else
+        socket
+      end
+
+    # Handle contact load error
+    socket =
+      if error_message = Map.get(socket.assigns, :contact_load_error) do
+        socket
+        |> assign(:contact_load_error, nil)
+        |> assign(:loading_contact, false)
+        |> assign(:search_error, error_message)
+        |> assign(:selected_contact, nil)
+      else
+        socket
+      end
 
     # Check if we need to generate suggestions (forwarded from parent LiveView)
     # Only process if the assign is present and we're not already loading
@@ -309,12 +487,133 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
   end
 
   @impl true
-  def handle_event("search_contacts", %{"query" => query}, socket) do
+  def handle_event("search_contacts", params, socket) do
+    require Logger
+
+    # Extract query from params - could be nested in "search" or direct
+    query =
+      cond do
+        Map.has_key?(params, "search") && Map.has_key?(params["search"], "query") ->
+          params["search"]["query"]
+
+        Map.has_key?(params, "query") ->
+          params["query"]
+
+        true ->
+          ""
+      end
+      |> String.trim()
+
+    Logger.debug("Search contacts event triggered with query: '#{query}', params: #{inspect(params)}")
+
+    # Update form value
+    socket = assign(socket, :search_form, to_form(%{"query" => query}, as: :search))
+
+    if socket.assigns.hubspot_connected && byte_size(query) >= 3 do
+      Logger.debug("Searching HubSpot for query: '#{query}'")
+      # First, check cache
+      cached_results = HubspotContactCache.search_cached_contacts(
+        socket.assigns.current_user.id,
+        query
+      )
+
+      if Enum.any?(cached_results) do
+        Logger.debug("Found #{length(cached_results)} cached results")
+        # Show cached results immediately
+        {:noreply,
+         socket
+         |> assign(:search_results, cached_results)
+         |> assign(:search_error, nil)
+         |> assign(:using_cache, true)}
+      else
+        Logger.debug("No cache found, searching HubSpot API")
+        # No cache, search HubSpot API
+        case Accounts.ensure_valid_hubspot_token(socket.assigns.hubspot_credential) do
+          {:ok, valid_token} ->
+            Logger.debug("Token validated, calling HubSpot API")
+            case HubspotApi.search_contacts(valid_token, query) do
+              {:ok, contacts} ->
+                Logger.debug("HubSpot API returned #{length(contacts)} contacts")
+                # Cache the results
+                Enum.each(contacts, fn contact ->
+                  HubspotContactCache.cache_contact(
+                    socket.assigns.current_user.id,
+                    contact.id,
+                    contact.properties
+                  )
+                end)
+
+                # Reload credential in case token was refreshed
+                updated_credential = Accounts.get_user_credential!(
+                  socket.assigns.hubspot_credential.id
+                )
+
+                {:noreply,
+                 socket
+                 |> assign(:search_results, contacts)
+                 |> assign(:search_error, nil)
+                 |> assign(:using_cache, false)
+                 |> assign(:hubspot_credential, updated_credential)}
+
+              {:error, reason} ->
+                error_message = format_error(reason)
+                {:noreply,
+                 socket
+                 |> assign(:search_results, [])
+                 |> assign(:search_error, error_message)
+                 |> assign(:using_cache, false)}
+            end
+
+          {:error, reason} ->
+            error_message = "Failed to refresh token: #{inspect(reason)}"
+            {:noreply,
+             socket
+             |> assign(:search_results, [])
+             |> assign(:search_error, error_message)
+             |> assign(:using_cache, false)}
+        end
+      end
+    else
+      Logger.debug("Query too short (#{byte_size(query)} chars) or HubSpot not connected")
+      # Clear results if query is too short
+      {:noreply,
+       socket
+       |> assign(:search_results, nil)
+       |> assign(:search_error, nil)
+       |> assign(:using_cache, false)}
+    end
+  end
+
+  def handle_event("fetch_contact_from_hubspot", params, socket) do
+    # Extract query from params - could be nested in "search" or direct
+    query =
+      cond do
+        Map.has_key?(params, "search") && Map.has_key?(params["search"], "query") ->
+          params["search"]["query"]
+
+        Map.has_key?(params, "query") ->
+          params["query"]
+
+        true ->
+          ""
+      end
+      |> String.trim()
+
+    # When Enter is pressed, fetch fresh data from HubSpot and update cache
     if socket.assigns.hubspot_connected && query != "" do
       case Accounts.ensure_valid_hubspot_token(socket.assigns.hubspot_credential) do
         {:ok, valid_token} ->
           case HubspotApi.search_contacts(valid_token, query) do
             {:ok, contacts} ->
+              # Update cache with fresh data
+              Enum.each(contacts, fn contact ->
+                HubspotContactCache.cache_contact(
+                  socket.assigns.current_user.id,
+                  contact.id,
+                  contact.properties
+                )
+              end)
+
               # Reload credential in case token was refreshed
               updated_credential = Accounts.get_user_credential!(
                 socket.assigns.hubspot_credential.id
@@ -324,6 +623,7 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
                socket
                |> assign(:search_results, contacts)
                |> assign(:search_error, nil)
+               |> assign(:using_cache, false)
                |> assign(:hubspot_credential, updated_credential)}
 
             {:error, reason} ->
@@ -331,7 +631,8 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
               {:noreply,
                socket
                |> assign(:search_results, [])
-               |> assign(:search_error, error_message)}
+               |> assign(:search_error, error_message)
+               |> assign(:using_cache, false)}
           end
 
         {:error, reason} ->
@@ -339,7 +640,8 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
           {:noreply,
            socket
            |> assign(:search_results, [])
-           |> assign(:search_error, error_message)}
+           |> assign(:search_error, error_message)
+           |> assign(:using_cache, false)}
       end
     else
       {:noreply, socket}
@@ -347,91 +649,102 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
   end
 
   @impl true
-  def handle_event("select_contact", %{"contact-id" => contact_id}, socket) do
-    if socket.assigns.hubspot_connected do
-      case Accounts.ensure_valid_hubspot_token(socket.assigns.hubspot_credential) do
-        {:ok, valid_token} ->
-          case HubspotApi.get_contact(valid_token, contact_id) do
-            {:ok, contact} ->
-              # Reload credential in case token was refreshed
-              updated_credential = Accounts.get_user_credential!(
-                socket.assigns.hubspot_credential.id
-              )
+  def handle_event("select_contact", params, socket) do
+    require Logger
+    contact_id = Map.get(params, "contact-id") || Map.get(params, "contact_id")
+    Logger.debug("Select contact event triggered with params: #{inspect(params)}, contact_id: #{inspect(contact_id)}")
 
-              socket =
-                socket
-                |> assign(:selected_contact, contact)
-                |> assign(:suggestions, [])
-                |> assign(:approved_suggestions, %{})
-                |> assign(:loading_suggestions, true)
-                |> assign(:suggestions_error, nil)
-                |> assign(:update_success, false)
-                |> assign(:update_error, nil)
-                |> assign(:hubspot_credential, updated_credential)
+    if socket.assigns.hubspot_connected && contact_id do
+      # Immediately show loading state and return
+      socket =
+        socket
+        |> assign(:selected_contact, nil)
+        |> assign(:loading_contact, true)
+        |> assign(:search_error, nil)
+        |> assign(:search_results, nil)
 
-              # Check for cached suggestions first
-              case HubspotSuggestions.get_cached_suggestions(
-                     socket.assigns.meeting.id,
-                     contact.id
-                   ) do
-                nil ->
-                  # No cache, generate suggestions asynchronously
-                  # Send message to parent LiveView, which will forward to component
-                  send(self(), {:generate_suggestions_for_component, contact})
-                  {:noreply, socket}
+      # Do the heavy work asynchronously
+      parent_pid = self()
+      component_id = socket.assigns.myself
+      user_id = socket.assigns.current_user.id
+      meeting_id = socket.assigns.meeting.id
+      credential = socket.assigns.hubspot_credential
 
-                cached ->
-                  # Use cached suggestions
-                  suggestions =
-                    case cached.suggestions do
-                      %{"suggestions" => s} -> s
-                      %{suggestions: s} -> s
-                      s when is_list(s) -> s
-                      _ -> []
-                    end
+      Task.start(fn ->
+        try do
+          # First check cache
+          cached_contact = HubspotContactCache.get_cached_contact(user_id, contact_id)
 
-                  current_values = contact.properties
+          contact = if cached_contact do
+            # Use cached contact
+            %{
+              id: cached_contact.hubspot_contact_id,
+              properties: cached_contact.properties,
+              created_at: cached_contact.properties["createdate"],
+              updated_at: cached_contact.properties["lastmodifieddate"]
+            }
+          else
+            # Fetch from HubSpot API
+            case Accounts.ensure_valid_hubspot_token(credential) do
+              {:ok, valid_token} ->
+                case HubspotApi.get_contact(valid_token, contact_id) do
+                  {:ok, contact} ->
+                    # Cache the contact
+                    HubspotContactCache.cache_contact(user_id, contact.id, contact.properties)
+                    contact
 
-                  suggestions_with_current =
-                    Enum.map(suggestions, fn suggestion ->
-                      field_str =
-                        suggestion["field"] ||
-                        suggestion[:field] ||
-                        (if is_atom(suggestion["field"]), do: Atom.to_string(suggestion["field"]), else: nil) ||
-                        ""
+                  {:error, reason} ->
+                    Logger.error("Failed to fetch contact from HubSpot: #{inspect(reason)}")
+                    nil
+                end
 
-                      field_atom = String.to_atom(field_str)
-                      current_value = Map.get(current_values, field_str)
-
-                      %{
-                        field: field_atom,
-                        current_value: current_value,
-                        suggested_value: suggestion["suggested_value"] || suggestion[:suggested_value] || "",
-                        evidence: suggestion["evidence"] || suggestion[:evidence] || ""
-                      }
-                    end)
-                    |> Enum.filter(fn s -> s.field != :"" end)
-
-                  {:noreply,
-                   socket
-                   |> assign(:suggestions, suggestions_with_current)
-                   |> assign(:loading_suggestions, false)
-                   |> assign(:suggestions_error, nil)
-                   |> assign(:using_cached_suggestions, true)}
-              end
-
-            {:error, reason} ->
-              error_message = format_error(reason)
-              {:noreply, assign(socket, :suggestions_error, error_message)}
+              {:error, reason} ->
+                Logger.error("Failed to validate HubSpot token: #{inspect(reason)}")
+                nil
+            end
           end
 
-        {:error, reason} ->
-          error_message = "Failed to refresh token: #{inspect(reason)}"
-          {:noreply, assign(socket, :suggestions_error, error_message)}
-      end
+          if contact do
+            Logger.debug("Contact found/loaded: #{contact.id}")
+            # Reload credential in case token was refreshed
+            updated_credential = Accounts.get_user_credential!(credential.id)
+
+            # Check for cached suggestions first
+            cached_suggestions = HubspotSuggestions.get_cached_suggestions(meeting_id, contact.id)
+
+            # Send message to parent LiveView to update component
+            send(parent_pid, {:contact_loaded, component_id, contact, updated_credential, cached_suggestions})
+          else
+            Logger.debug("Failed to fetch contact details for contact_id: #{contact_id}")
+            send(parent_pid, {:contact_load_error, component_id, "Failed to fetch contact details"})
+          end
+        rescue
+          e ->
+            Logger.error("Error loading contact: #{Exception.format(:error, e, __STACKTRACE__)}")
+            send(parent_pid, {:contact_load_error, component_id, "An error occurred while loading the contact"})
+        end
+      end)
+
+      {:noreply, socket}
     else
       {:noreply, socket}
     end
+  end
+
+  @impl true
+  def handle_event("edit_suggested_value", params, socket) do
+    field_str = Map.get(params, "field")
+    field_atom = String.to_atom(field_str)
+
+    # Get the value from the input field
+    new_value = Map.get(params, "suggested_value", "")
+
+    current_edited = socket.assigns.edited_suggestions
+
+    # Store the edited value
+    new_edited = Map.put(current_edited, field_atom, new_value)
+
+    {:noreply, assign(socket, :edited_suggestions, new_edited)}
   end
 
   @impl true
@@ -450,9 +763,92 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
   end
 
   @impl true
+  def handle_event("toggle_category", %{"category" => category_key}, socket) do
+    category = key_to_category(category_key)
+    category_suggestions = get_suggestions_for_category(socket.assigns.suggestions, category)
+    current_approved = socket.assigns.approved_suggestions
+
+    # Check if all are selected
+    all_selected =
+      Enum.all?(category_suggestions, fn s -> Map.has_key?(current_approved, s.field) end)
+
+    new_approved =
+      if all_selected do
+        # Deselect all in category
+        Enum.reduce(category_suggestions, current_approved, fn s, acc ->
+          Map.delete(acc, s.field)
+        end)
+      else
+        # Select all in category
+        Enum.reduce(category_suggestions, current_approved, fn s, acc ->
+          Map.put(acc, s.field, true)
+        end)
+      end
+
+    {:noreply, assign(socket, :approved_suggestions, new_approved)}
+  end
+
+  @impl true
+  def handle_event("toggle_category_expand", %{"category" => category_key}, socket) do
+    current_expanded = socket.assigns.expanded_categories
+    new_expanded =
+      if Map.get(current_expanded, category_key, true) do
+        Map.put(current_expanded, category_key, false)
+      else
+        Map.put(current_expanded, category_key, true)
+      end
+
+    {:noreply, assign(socket, :expanded_categories, new_expanded)}
+  end
+
+  @impl true
+  def handle_event("clear_contact", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:selected_contact, nil)
+     |> assign(:suggestions, [])
+     |> assign(:approved_suggestions, %{})
+     |> assign(:edited_suggestions, %{})
+     |> assign(:search_results, nil)}
+  end
+
+  @impl true
+  def handle_event("cancel", _params, socket) do
+    {:noreply, push_patch(socket, to: socket.assigns.patch)}
+  end
+
+  @impl true
+  def handle_event("refetch_suggestions", _params, socket) do
+    if socket.assigns.selected_contact do
+      # Delete cached suggestions and regenerate
+      HubspotSuggestions.delete_suggestions(
+        socket.assigns.meeting.id,
+        socket.assigns.selected_contact.id
+      )
+
+      socket =
+        socket
+        |> assign(:suggestions, [])
+        |> assign(:approved_suggestions, %{})
+        |> assign(:edited_suggestions, %{})
+        |> assign(:loading_suggestions, true)
+        |> assign(:suggestions_error, nil)
+        |> assign(:using_cached_suggestions, false)
+
+      # Send message to parent LiveView, which will forward to component
+      send(self(), {:generate_suggestions_for_component, socket.assigns.selected_contact})
+
+      {:noreply, socket}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
   def handle_event("update_hubspot", _params, socket) do
     if socket.assigns.hubspot_connected && socket.assigns.selected_contact do
       # Build properties map from approved suggestions
+      # Use edited values if available, otherwise use original suggested_value
       properties =
         socket.assigns.suggestions
         |> Enum.filter(fn suggestion ->
@@ -460,7 +856,9 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
         end)
         |> Enum.reduce(%{}, fn suggestion, acc ->
           field_name = Atom.to_string(suggestion.field)
-          Map.put(acc, field_name, suggestion.suggested_value)
+          # Use edited value if it exists, otherwise use original suggested_value
+          value = Map.get(socket.assigns.edited_suggestions, suggestion.field, suggestion.suggested_value)
+          Map.put(acc, field_name, value)
         end)
 
       if map_size(properties) > 0 do
@@ -555,31 +953,6 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
     end
   end
 
-  def handle_event("refetch_suggestions", _params, socket) do
-    if socket.assigns.selected_contact do
-      # Delete cached suggestions and regenerate
-      HubspotSuggestions.delete_suggestions(
-        socket.assigns.meeting.id,
-        socket.assigns.selected_contact.id
-      )
-
-      socket =
-        socket
-        |> assign(:suggestions, [])
-        |> assign(:approved_suggestions, %{})
-        |> assign(:loading_suggestions, true)
-        |> assign(:suggestions_error, nil)
-        |> assign(:using_cached_suggestions, false)
-
-      # Send message to parent LiveView, which will forward to component
-      send(self(), {:generate_suggestions_for_component, socket.assigns.selected_contact})
-
-      {:noreply, socket}
-    else
-      {:noreply, socket}
-    end
-  end
-
   defp contact_name(contact) do
     first = contact.properties["firstname"] || ""
     last = contact.properties["lastname"] || ""
@@ -589,6 +962,26 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
       first != "" || last != "" -> "#{first} #{last}" |> String.trim()
       email != "" -> email
       true -> "Contact ##{contact.id}"
+    end
+  end
+
+  defp contact_initials(contact) do
+    first = contact.properties["firstname"] || ""
+    last = contact.properties["lastname"] || ""
+    email = contact.properties["email"] || ""
+
+    cond do
+      first != "" && last != "" ->
+        String.first(String.upcase(first)) <> String.first(String.upcase(last))
+
+      first != "" ->
+        String.first(String.upcase(first)) <> String.first(String.upcase(first))
+
+      email != "" ->
+        String.first(String.upcase(email)) <> String.first(String.upcase(email))
+
+      true ->
+        "C"
     end
   end
 
@@ -620,4 +1013,52 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
   defp format_error(reason) do
     "Error: #{inspect(reason)}"
   end
+
+  defp group_suggestions_by_category(suggestions) do
+    suggestions
+    |> Enum.group_by(fn suggestion -> get_category_for_field(suggestion.field) end)
+    |> Enum.sort_by(fn {category, _} -> category_order(category) end)
+  end
+
+  defp get_category_for_field(field) when field in [:firstname, :lastname], do: "Name"
+  defp get_category_for_field(field) when field in [:email, :phone], do: "Contact Information"
+  defp get_category_for_field(field) when field in [:company, :jobtitle], do: "Company"
+  defp get_category_for_field(field) when field in [:address, :city, :state, :zip, :country], do: "Address"
+  defp get_category_for_field(_field), do: "Other"
+
+  defp category_order("Name"), do: 1
+  defp category_order("Contact Information"), do: 2
+  defp category_order("Company"), do: 3
+  defp category_order("Address"), do: 4
+  defp category_order(_), do: 5
+
+  defp category_to_key("Name"), do: "name"
+  defp category_to_key("Contact Information"), do: "contact_info"
+  defp category_to_key("Company"), do: "company"
+  defp category_to_key("Address"), do: "address"
+  defp category_to_key(_), do: "other"
+
+  defp key_to_category("name"), do: "Name"
+  defp key_to_category("contact_info"), do: "Contact Information"
+  defp key_to_category("company"), do: "Company"
+  defp key_to_category("address"), do: "Address"
+  defp key_to_category(_), do: "Other"
+
+  defp get_suggestions_for_category(suggestions, category) do
+    Enum.filter(suggestions, fn s -> get_category_for_field(s.field) == category end)
+  end
+
+  defp count_selected_in_category(category_suggestions, approved_suggestions) do
+    Enum.count(category_suggestions, fn s -> Map.has_key?(approved_suggestions, s.field) end)
+  end
+
+  defp count_total_selected(suggestions, approved_suggestions) do
+    Enum.count(suggestions, fn s -> Map.has_key?(approved_suggestions, s.field) end)
+  end
+
+  defp pluralize(1), do: ""
+  defp pluralize(_), do: "s"
+
+  defp pluralize_selected(1), do: ""
+  defp pluralize_selected(_), do: "s"
 end
