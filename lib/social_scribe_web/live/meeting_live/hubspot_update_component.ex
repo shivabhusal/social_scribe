@@ -22,26 +22,27 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
         <div class="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
           <p class="text-yellow-800">
             Please connect your HubSpot account in
-            <.link
-              href={~p"/dashboard/settings"}
-              class="font-semibold underline"
-            >
+            <.link href={~p"/dashboard/settings"} class="font-semibold underline">
               Settings
             </.link>
             to use this feature.
           </p>
         </div>
       <% else %>
+
         <!-- Contact Search Section -->
         <div class="mb-6">
           <label class="block text-sm font-medium text-slate-700 mb-2">Select Contact</label>
+
           <%= if @selected_contact do %>
             <div class="flex items-center gap-3 p-3 border border-slate-300 rounded-md bg-white">
               <div class="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-semibold text-sm">
                 <%= contact_initials(@selected_contact) %>
               </div>
               <div class="flex-1">
-                <div class="font-medium text-slate-900"><%= contact_name(@selected_contact) %></div>
+                <div class="font-medium text-slate-900">
+                  <%= contact_name(@selected_contact) %>
+                </div>
                 <div class="text-sm text-slate-500">
                   <%= @selected_contact.properties["email"] || "No email" %>
                 </div>
@@ -52,31 +53,25 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
                 phx-target={@myself}
                 class="text-slate-400 hover:text-slate-600"
               >
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                ✕
               </button>
             </div>
           <% else %>
-            <div class="space-y-3">
-              <.simple_form
-                for={@search_form}
-                as={:search}
-                phx-target={@myself}
-                phx-change="search_contacts"
-                phx-submit="fetch_contact_from_hubspot"
-              >
-                <.input
-                  field={@search_form[:query]}
-                  type="text"
-                  placeholder="Search by name or email... (type at least 3 characters)"
-                  phx-debounce="300"
-                />
-              </.simple_form>
-              <%= if Map.get(assigns, :using_cache, false) && @search_results do %>
-                <p class="text-xs text-slate-500 italic">Showing cached results</p>
-              <% end %>
-            </div>
+
+            <.simple_form
+              for={@search_form}
+              as={:search}
+              phx-target={@myself}
+              phx-change="search_contacts"
+              phx-submit="fetch_contact_from_hubspot"
+            >
+              <.input
+                field={@search_form[:query]}
+                type="text"
+                placeholder="Search by name or email..."
+                phx-debounce="300"
+              />
+            </.simple_form>
 
             <%= if @search_results do %>
               <div class="mt-2 border border-slate-200 rounded-md bg-white max-h-60 overflow-y-auto shadow-lg z-10">
@@ -107,36 +102,25 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
               </div>
             <% end %>
 
-            <%= if @search_error do %>
-              <div class="mt-2 p-3 bg-red-50 border border-red-200 rounded-md text-red-800 text-sm">
-                {@search_error}
-              </div>
-            <% end %>
           <% end %>
         </div>
 
-        <!-- Loading Contact State -->
-        <%= if Map.get(assigns, :loading_contact, false) do %>
-          <div class="py-8 text-center">
-            <p class="text-slate-600">Loading contact details...</p>
-          </div>
-        <% end %>
-
         <!-- Suggestions Section -->
-        <%= if @selected_contact do %>
-          <%= if @loading_suggestions do %>
-            <div class="py-8 text-center">
-              <p class="text-slate-600">Generating AI suggestions...</p>
+        <%= if @loading_suggestions do %>
+          <div class="py-8 text-center text-slate-600">
+            Generating AI suggestions...
+          </div>
+        <% else %>
+
+          <%= if @suggestions_error do %>
+            <div class="p-4 bg-red-50 border border-red-200 rounded-md text-red-800">
+              {@suggestions_error}
             </div>
           <% else %>
-            <%= if @suggestions_error do %>
-              <div class="p-4 bg-red-50 border border-red-200 rounded-md text-red-800">
-                {@suggestions_error}
-              </div>
-            <% else %>
+
               <%= if Enum.empty?(@suggestions) do %>
                 <div class="p-4 bg-blue-50 border border-blue-200 rounded-md text-blue-800">
-                  No updates suggested. The transcript doesn't contain explicit information that would update this contact.
+                  No updates suggested. The transcript doesn't contain explicit information that would update a contact.
                 </div>
               <% else %>
                 <div class="space-y-4">
@@ -197,16 +181,16 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
                                 />
                               </label>
                               <div class="flex-1">
-                              <div class="font-medium text-slate-900 mb-3">
-                                <%= format_field_name(suggestion.field) %>
-                              </div>
+                                <div class="font-medium text-slate-900 mb-3">
+                                  <%= format_field_name(suggestion.field) %>
+                                </div>
                                 <div class="grid grid-cols-2 gap-4 mb-3">
                                   <div>
                                     <input
                                       type="text"
                                       value={format_value(suggestion.current_value)}
                                       readonly
-                                      class="w-full px-3 py-2 border border-slate-300 rounded-md bg-slate-50 text-slate-700 text-sm"
+                                      class="w-full px-3 py-2 border border-slate-300 rounded-md bg-slate-50 text-slate-700 text-sm line-through"
                                     />
                                   </div>
                                   <div class="flex items-center gap-2">
@@ -268,11 +252,10 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
                   </div>
                 </div>
               <% end %>
-            <% end %>
           <% end %>
         <% end %>
 
-        <!-- Success/Error Messages -->
+        <!-- ✅ Success / Error Messages (NO extra end above this) -->
         <%= if @update_success do %>
           <div class="mt-6 p-4 bg-green-50 border border-green-200 rounded-md text-green-800">
             Contact updated successfully!
@@ -284,6 +267,7 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
             {@update_error}
           </div>
         <% end %>
+
       <% end %>
     </div>
     """
@@ -322,6 +306,61 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
       |> assign(:hubspot_connected, not is_nil(hubspot_credential))
       |> assign(:hubspot_credential, hubspot_credential)
 
+    # Load suggestions for the meeting on mount (even without a contact)
+    socket =
+      if socket.assigns.suggestions == [] && not socket.assigns.loading_suggestions do
+        # Check for cached suggestions for this meeting (without contact filter)
+        # We'll load suggestions for the meeting, then update current_values when contact is selected
+        meeting_id = socket.assigns.meeting.id
+
+        # Try to get any cached suggestions for this meeting
+        # Since suggestions are stored per contact, we'll generate new ones if none exist
+        # But first, try to generate suggestions for the meeting
+        if connected?(socket) do
+          send(self(), {:load_meeting_suggestions, meeting_id})
+          assign(socket, :loading_suggestions, true)
+        else
+          socket
+        end
+      else
+        socket
+      end
+
+    # Load meeting suggestions (without contact)
+    socket =
+      if Map.get(socket.assigns, :load_meeting_suggestions) do
+        socket = assign(socket, :load_meeting_suggestions, nil)
+        meeting = socket.assigns.meeting
+
+        # Generate suggestions for the meeting (without contact)
+        parent_pid = self()
+
+        Task.start(fn ->
+          case HubspotAISuggestions.generate_suggestions(meeting) do
+            {:ok, suggestions} ->
+              # Suggestions without current values (no contact selected yet)
+              suggestions_without_current =
+                Enum.map(suggestions, fn suggestion ->
+                  %{
+                    field: suggestion.field,
+                    current_value: nil,
+                    suggested_value: suggestion.suggested_value,
+                    evidence: suggestion.evidence || ""
+                  }
+                end)
+
+              send(parent_pid, {:meeting_suggestions_loaded, suggestions_without_current})
+
+            {:error, reason} ->
+              send(parent_pid, {:suggestions_error, format_error(reason)})
+          end
+        end)
+
+        assign(socket, :loading_suggestions, true)
+      else
+        socket
+      end
+
     # Handle contact loaded from async task
     socket =
       if contact_data = Map.get(socket.assigns, :contact_loaded) do
@@ -332,17 +371,26 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
         socket =
           socket
           |> assign(:selected_contact, contact)
-          |> assign(:suggestions, [])
           |> assign(:approved_suggestions, %{})
           |> assign(:edited_suggestions, %{})
-          |> assign(:loading_suggestions, true)
           |> assign(:suggestions_error, nil)
           |> assign(:update_success, false)
           |> assign(:update_error, nil)
           |> assign(:hubspot_credential, updated_credential)
 
+        # Update existing suggestions with contact's current values
+        current_values = contact.properties
+
+        updated_suggestions =
+          Enum.map(socket.assigns.suggestions, fn suggestion ->
+            field_str = Atom.to_string(suggestion.field)
+            current_value = Map.get(current_values, field_str)
+
+            %{suggestion | current_value: current_value}
+          end)
+
         if cached_suggestions do
-          # Use cached suggestions
+          # Use cached suggestions but update with contact's current values
           suggestions =
             case cached_suggestions.suggestions do
               %{"suggestions" => s} -> s
@@ -350,8 +398,6 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
               s when is_list(s) -> s
               _ -> []
             end
-
-          current_values = contact.properties
 
           suggestions_with_current =
             Enum.map(suggestions, fn suggestion ->
@@ -379,9 +425,10 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
           |> assign(:suggestions_error, nil)
           |> assign(:using_cached_suggestions, true)
         else
-          # No cache, generate suggestions asynchronously
-          send(self(), {:generate_suggestions_for_component, contact})
+          # Update existing suggestions with contact's current values
           socket
+          |> assign(:suggestions, updated_suggestions)
+          |> assign(:loading_suggestions, false)
         end
       else
         socket
@@ -395,6 +442,18 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
         |> assign(:loading_contact, false)
         |> assign(:search_error, error_message)
         |> assign(:selected_contact, nil)
+      else
+        socket
+      end
+
+    # Handle meeting suggestions loaded (without contact)
+    socket =
+      if suggestions = Map.get(socket.assigns, :meeting_suggestions_loaded) do
+        socket
+        |> assign(:meeting_suggestions_loaded, nil)
+        |> assign(:suggestions, suggestions)
+        |> assign(:loading_suggestions, false)
+        |> assign(:suggestions_error, nil)
       else
         socket
       end
@@ -672,51 +731,33 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
 
       Task.start(fn ->
         try do
-          # First check cache
-          cached_contact = HubspotContactCache.get_cached_contact(user_id, contact_id)
+          # Always fetch fresh from HubSpot API (don't use cache)
+          case Accounts.ensure_valid_hubspot_token(credential) do
+            {:ok, valid_token} ->
+              case HubspotApi.get_contact(valid_token, contact_id) do
+                {:ok, contact} ->
+                  # Update the cache with fresh data
+                  HubspotContactCache.cache_contact(user_id, contact.id, contact.properties)
 
-          contact = if cached_contact do
-            # Use cached contact
-            %{
-              id: cached_contact.hubspot_contact_id,
-              properties: cached_contact.properties,
-              created_at: cached_contact.properties["createdate"],
-              updated_at: cached_contact.properties["lastmodifieddate"]
-            }
-          else
-            # Fetch from HubSpot API
-            case Accounts.ensure_valid_hubspot_token(credential) do
-              {:ok, valid_token} ->
-                case HubspotApi.get_contact(valid_token, contact_id) do
-                  {:ok, contact} ->
-                    # Cache the contact
-                    HubspotContactCache.cache_contact(user_id, contact.id, contact.properties)
-                    contact
+                  Logger.debug("Contact fetched and cached: #{contact.id}")
 
-                  {:error, reason} ->
-                    Logger.error("Failed to fetch contact from HubSpot: #{inspect(reason)}")
-                    nil
-                end
+                  # Reload credential in case token was refreshed
+                  updated_credential = Accounts.get_user_credential!(credential.id)
 
-              {:error, reason} ->
-                Logger.error("Failed to validate HubSpot token: #{inspect(reason)}")
-                nil
-            end
-          end
+                  # Check for cached suggestions first
+                  cached_suggestions = HubspotSuggestions.get_cached_suggestions(meeting_id, contact.id)
 
-          if contact do
-            Logger.debug("Contact found/loaded: #{contact.id}")
-            # Reload credential in case token was refreshed
-            updated_credential = Accounts.get_user_credential!(credential.id)
+                  # Send message to parent LiveView to update component
+                  send(parent_pid, {:contact_loaded, component_id, contact, updated_credential, cached_suggestions})
 
-            # Check for cached suggestions first
-            cached_suggestions = HubspotSuggestions.get_cached_suggestions(meeting_id, contact.id)
+                {:error, reason} ->
+                  Logger.error("Failed to fetch contact from HubSpot: #{inspect(reason)}")
+                  send(parent_pid, {:contact_load_error, component_id, "Failed to fetch contact details"})
+              end
 
-            # Send message to parent LiveView to update component
-            send(parent_pid, {:contact_loaded, component_id, contact, updated_credential, cached_suggestions})
-          else
-            Logger.debug("Failed to fetch contact details for contact_id: #{contact_id}")
-            send(parent_pid, {:contact_load_error, component_id, "Failed to fetch contact details"})
+            {:error, reason} ->
+              Logger.error("Failed to validate HubSpot token: #{inspect(reason)}")
+              send(parent_pid, {:contact_load_error, component_id, "Failed to validate HubSpot token"})
           end
         rescue
           e ->
@@ -803,13 +844,24 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
 
   @impl true
   def handle_event("clear_contact", _params, socket) do
+    # Clear selected contact but keep suggestions visible
+    # Reset current values in suggestions to nil since no contact is selected
+    updated_suggestions =
+      Enum.map(socket.assigns.suggestions, fn suggestion ->
+        %{suggestion | current_value: nil}
+      end)
+
+    # Clear the search form field
+    cleared_search_form = to_form(%{"query" => ""}, as: :search)
+
     {:noreply,
      socket
      |> assign(:selected_contact, nil)
-     |> assign(:suggestions, [])
+     |> assign(:suggestions, updated_suggestions)
      |> assign(:approved_suggestions, %{})
      |> assign(:edited_suggestions, %{})
-     |> assign(:search_results, nil)}
+     |> assign(:search_results, nil)
+     |> assign(:search_form, cleared_search_form)}
   end
 
   @impl true
@@ -869,17 +921,44 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponent do
                    socket.assigns.selected_contact.id,
                    properties
                  ) do
-              {:ok, _updated_contact} ->
+              {:ok, updated_contact} ->
                 # Reload credential in case token was refreshed
                 updated_credential = Accounts.get_user_credential!(
                   socket.assigns.hubspot_credential.id
                 )
 
+                # Update the local contact cache with the new properties
+                HubspotContactCache.cache_contact(
+                  socket.assigns.current_user.id,
+                  updated_contact.id,
+                  updated_contact.properties
+                )
+
+                # Update the selected_contact in socket with the fresh data
+                # Merge the updated properties while preserving other fields
+                updated_selected_contact = %{
+                  socket.assigns.selected_contact
+                  | properties: Map.merge(socket.assigns.selected_contact.properties, updated_contact.properties),
+                    updated_at: updated_contact.updated_at
+                }
+
+                # Update suggestions with new current values from the updated contact
+                updated_suggestions =
+                  Enum.map(socket.assigns.suggestions, fn suggestion ->
+                    field_str = Atom.to_string(suggestion.field)
+                    current_value = Map.get(updated_selected_contact.properties, field_str)
+                    %{suggestion | current_value: current_value}
+                  end)
+
                 {:noreply,
                  socket
                  |> assign(:update_success, true)
                  |> assign(:update_error, nil)
-                 |> assign(:hubspot_credential, updated_credential)}
+                 |> assign(:hubspot_credential, updated_credential)
+                 |> assign(:selected_contact, updated_selected_contact)
+                 |> assign(:suggestions, updated_suggestions)
+                 |> assign(:approved_suggestions, %{})
+                 |> assign(:edited_suggestions, %{})}
 
               {:error, reason} ->
                 error_message = format_error(reason)

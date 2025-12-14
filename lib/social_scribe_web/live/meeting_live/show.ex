@@ -74,7 +74,18 @@ defmodule SocialScribeWeb.MeetingLive.Show do
   end
 
   @impl true
-  def handle_info({:contact_loaded, component_id, contact, updated_credential, cached_suggestions}, socket) do
+  def handle_info({:load_meeting_suggestions, _meeting_id}, socket) do
+    # Load suggestions for the meeting (without a contact)
+    send_update(SocialScribeWeb.MeetingLive.HubspotUpdateComponent,
+      id: "hubspot-update-#{socket.assigns.meeting.id}",
+      load_meeting_suggestions: true
+    )
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:contact_loaded, _component_id, contact, updated_credential, cached_suggestions}, socket) do
     # Forward contact loaded message to component
     send_update(SocialScribeWeb.MeetingLive.HubspotUpdateComponent,
       id: "hubspot-update-#{socket.assigns.meeting.id}",
@@ -123,6 +134,17 @@ defmodule SocialScribeWeb.MeetingLive.Show do
     send_update(SocialScribeWeb.MeetingLive.HubspotUpdateComponent,
       id: "hubspot-update-#{socket.assigns.meeting.id}",
       suggestions_result: suggestions
+    )
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:meeting_suggestions_loaded, suggestions}, socket) do
+    # Forward meeting suggestions to component
+    send_update(SocialScribeWeb.MeetingLive.HubspotUpdateComponent,
+      id: "hubspot-update-#{socket.assigns.meeting.id}",
+      meeting_suggestions_loaded: suggestions
     )
 
     {:noreply, socket}
