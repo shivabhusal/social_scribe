@@ -105,20 +105,29 @@
             </p>
           </div>
 
-          <div>
+          <div class="flex gap-2">
             <.link
               patch={~p"/auth/facebook"}
-              class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             >
               Refresh Auth
             </.link>
 
             <.link
               patch={~p"/dashboard/settings/facebook_pages"}
-              class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             >
               Select Page
             </.link>
+
+            <.button
+              phx-click="disconnect_facebook"
+              phx-value-credential-id={account.id}
+              phx-confirm="Are you sure you want to disconnect this Facebook account?"
+              class="inline-flex items-center px-4 py-2 border border-red-300 text-sm font-medium rounded-md shadow-sm text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+            >
+              Disconnect
+            </.button>
           </div>
         </li>
       </ul>
@@ -235,8 +244,18 @@
               <% end %>
             </p>
           </div>
-          <div class="inline-flex items-center px-3 py-1 text-sm font-medium rounded-full bg-green-50 text-green-700">
-            Connected
+          <div class="flex gap-2 items-center">
+            <div class="inline-flex items-center px-3 py-1 text-sm font-medium rounded-full bg-green-50 text-green-700">
+              Connected
+            </div>
+            <.button
+              phx-click="disconnect_hubspot"
+              phx-value-credential-id={account.id}
+              phx-confirm="Are you sure you want to disconnect this HubSpot account?"
+              class="inline-flex items-center px-4 py-2 border border-red-300 text-sm font-medium rounded-md shadow-sm text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+            >
+              Disconnect
+            </.button>
           </div>
         </li>
       </ul>
@@ -247,7 +266,7 @@
 
       <div>
         <.link
-          href={"/auth/hubspot?scope=" <> Application.get_env(:ueberauth, Ueberauth.Strategy.Hubspot.OAuth)[:default_scope]}
+          href={"/auth/hubspot?scope=" <> URI.encode(@hubspot_default_scope)}
           method="get"
           class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 "
         >
