@@ -16,6 +16,7 @@ defmodule SocialScribe.Workers.BotStatusPoller do
     end
 
     for bot_record <- bots_to_poll do
+      Logger.info("Polling bot: #{inspect(bot_record)}")
       poll_and_process_bot(bot_record)
     end
 
@@ -23,7 +24,18 @@ defmodule SocialScribe.Workers.BotStatusPoller do
   end
 
   defp poll_and_process_bot(bot_record) do
+    Logger.info("Polling bot: #{inspect(bot_record)}")
+
     case RecallApi.get_bot(bot_record.recall_bot_id) do
+      # Bot not found on Recall side – 404-style response body
+      {:ok, %Tesla.Env{body: %{detail: "Not found."} = body}} ->
+        Logger.error(
+          "Recall bot #{bot_record.recall_bot_id} not found on Recall.ai: #{inspect(body)}"
+        )
+
+        Bots.update_recall_bot(bot_record, %{status: "error"})
+
+      # Successful response – normal happy path
       {:ok, %Tesla.Env{body: bot_api_info}} ->
         new_status =
           bot_api_info
@@ -31,10 +43,13 @@ defmodule SocialScribe.Workers.BotStatusPoller do
           |> List.last()
           |> Map.get(:code)
 
+        Logger.info("Bot #{bot_record.recall_bot_id} new status: #{new_status}")
+
         {:ok, updated_bot_record} = Bots.update_recall_bot(bot_record, %{status: new_status})
 
         if new_status == "done" &&
              is_nil(Meetings.get_meeting_by_recall_bot_id(updated_bot_record.id)) do
+          Logger.info("Bot #{updated_bot_record.recall_bot_id} is done. Processing transcript...")
           process_completed_bot(updated_bot_record, bot_api_info)
         else
           if new_status != bot_record.status do
@@ -56,6 +71,7 @@ defmodule SocialScribe.Workers.BotStatusPoller do
 
     case RecallApi.get_bot_transcript(bot_record.recall_bot_id) do
       {:ok, %Tesla.Env{body: transcript_data}} ->
+        Logger.info("Transcript data: #{inspect(transcript_data)}")
         Logger.info("Successfully fetched transcript for bot #{bot_record.recall_bot_id}")
 
         case Meetings.create_meeting_from_recall_data(bot_record, bot_api_info, transcript_data) do

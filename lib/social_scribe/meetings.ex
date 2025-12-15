@@ -344,41 +344,97 @@ defmodule SocialScribe.Meetings do
   This should be called when a bot's status is "done".
   """
   def create_meeting_from_recall_data(%RecallBot{} = recall_bot, bot_api_info, transcript_data) do
-    calendar_event = Repo.preload(recall_bot, :calendar_event).calendar_event
+    recall_bot_with_event = Repo.preload(recall_bot, :calendar_event)
+    calendar_event = recall_bot_with_event.calendar_event
 
-    Repo.transaction(fn ->
-      meeting_attrs = parse_meeting_attrs(calendar_event, recall_bot, bot_api_info)
+    if is_nil(calendar_event) do
+      Logger.error(
+        "Cannot create meeting: calendar_event is nil for recall_bot #{recall_bot.id}"
+      )
 
-      {:ok, meeting} = create_meeting(meeting_attrs)
+      {:error, :missing_calendar_event}
+    else
+      Repo.transaction(fn ->
+        Logger.info("Creating meeting from recall data for bot #{recall_bot.recall_bot_id}")
+        meeting_attrs = parse_meeting_attrs(calendar_event, recall_bot, bot_api_info)
+        Logger.debug("Meeting attrs: #{inspect(meeting_attrs)}")
 
-      transcript_attrs = parse_transcript_attrs(meeting, transcript_data)
+        case create_meeting(meeting_attrs) do
+          {:ok, meeting} ->
+            Logger.info("Created meeting #{meeting.id}, now creating transcript...")
+            transcript_attrs = parse_transcript_attrs(meeting, transcript_data)
+            Logger.debug("Transcript attrs: #{inspect(transcript_attrs)}")
 
-      {:ok, _transcript} = create_meeting_transcript(transcript_attrs)
+            case create_meeting_transcript(transcript_attrs) do
+              {:ok, transcript} ->
+                Logger.info("Created transcript #{transcript.id} for meeting #{meeting.id}")
 
-      Enum.each(bot_api_info.meeting_participants || [], fn participant_data ->
-        participant_attrs = parse_participant_attrs(meeting, participant_data)
-        create_meeting_participant(participant_attrs)
+                # Create participants, but don't fail the transaction if participant creation fails.
+                # Be defensive about key types in bot_api_info (may be atom or string keys).
+                participants =
+                  Map.get(bot_api_info, :meeting_participants) ||
+                    Map.get(bot_api_info, "meeting_participants") ||
+                    []
+
+                Enum.each(participants, fn participant_data ->
+                  participant_attrs = parse_participant_attrs(meeting, participant_data)
+
+                  case create_meeting_participant(participant_attrs) do
+                    {:ok, participant} ->
+                      Logger.debug("Created participant #{participant.id} for meeting #{meeting.id}")
+
+                    {:error, changeset} ->
+                      Logger.warning(
+                        "Failed to create participant for meeting #{meeting.id}: #{inspect(changeset.errors)}"
+                      )
+                  end
+                end)
+
+                Repo.preload(meeting, [:meeting_transcript, :meeting_participants])
+
+              {:error, changeset} ->
+                Logger.error(
+                  "Failed to create transcript for meeting #{meeting.id}: #{inspect(changeset.errors)}"
+                )
+
+                Repo.rollback({:transcript_creation_failed, changeset})
+            end
+
+          {:error, changeset} ->
+            Logger.error(
+              "Failed to create meeting from recall data: #{inspect(changeset.errors)}. Changeset: #{inspect(changeset)}"
+            )
+
+            Repo.rollback({:meeting_creation_failed, changeset})
+        end
       end)
-
-      Repo.preload(meeting, [:meeting_transcript, :meeting_participants])
-    end)
+    end
   end
 
   # --- Private Parser Functions ---
 
   defp parse_meeting_attrs(calendar_event, recall_bot, bot_api_info) do
-    recording_info = List.first(bot_api_info.recordings || []) || %{}
+    recordings = Map.get(bot_api_info, :recordings) || Map.get(bot_api_info, "recordings") || []
+    recording_info = List.first(recordings) || %{}
 
     completed_at =
-      case DateTime.from_iso8601(recording_info.completed_at) do
-        {:ok, parsed_completed_at, _} -> parsed_completed_at
-        _ -> nil
+      case Map.get(recording_info, :completed_at) || Map.get(recording_info, "completed_at") do
+        nil -> nil
+        date_string ->
+          case DateTime.from_iso8601(date_string) do
+            {:ok, parsed_completed_at, _} -> parsed_completed_at
+            _ -> nil
+          end
       end
 
     recorded_at =
-      case DateTime.from_iso8601(recording_info.started_at) do
-        {:ok, parsed_recorded_at, _} -> parsed_recorded_at
-        _ -> nil
+      case Map.get(recording_info, :started_at) || Map.get(recording_info, "started_at") do
+        nil -> nil
+        date_string ->
+          case DateTime.from_iso8601(date_string) do
+            {:ok, parsed_recorded_at, _} -> parsed_recorded_at
+            _ -> nil
+          end
       end
 
     duration_seconds =
@@ -389,7 +445,9 @@ defmodule SocialScribe.Meetings do
       end
 
     title =
-      calendar_event.summary || Map.get(bot_api_info, [:meeting_metadata, :title]) ||
+      calendar_event.summary ||
+        get_in(bot_api_info, [:meeting_metadata, :title]) ||
+        get_in(bot_api_info, ["meeting_metadata", "title"]) ||
         "Recorded Meeting"
 
     %{
@@ -402,19 +460,39 @@ defmodule SocialScribe.Meetings do
   end
 
   defp parse_transcript_attrs(meeting, transcript_data) do
+    language =
+      case List.first(transcript_data || []) do
+        nil -> "unknown"
+        first_item -> Map.get(first_item, :language, "unknown")
+      end
+
     %{
       meeting_id: meeting.id,
       content: %{data: transcript_data},
-      language: List.first(transcript_data || []) |> Map.get(:language, "unknown")
+      language: language
     }
   end
 
   defp parse_participant_attrs(meeting, participant_data) do
+    participant_id =
+      Map.get(participant_data, :id) ||
+        Map.get(participant_data, "id") ||
+        System.unique_integer([:positive])
+
+    participant_name =
+      Map.get(participant_data, :name) ||
+        Map.get(participant_data, "name") ||
+        "Unknown Participant"
+
+    is_host =
+      Map.get(participant_data, :is_host, false) ||
+        Map.get(participant_data, "is_host", false)
+
     %{
       meeting_id: meeting.id,
-      recall_participant_id: to_string(participant_data.id),
-      name: participant_data.name,
-      is_host: Map.get(participant_data, :is_host, false)
+      recall_participant_id: to_string(participant_id),
+      name: participant_name,
+      is_host: is_host
     }
   end
 

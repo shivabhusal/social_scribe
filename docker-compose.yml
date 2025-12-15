@@ -27,6 +27,8 @@ services:
       - pgadmin_data:/var/lib/pgadmin
     networks:
       - postgres
+    depends_on:
+      - pg
 
 networks:
   postgres:

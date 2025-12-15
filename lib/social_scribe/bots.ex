@@ -23,7 +23,7 @@ defmodule SocialScribe.Bots do
   end
 
   @doc """
-  Lists all bots whose status is not yet "done" or "error".
+  Lists all bots whose status is not yet "done", "error", or "polling_error".
   These are the bots that the poller should check.
   """
   def list_pending_bots do
