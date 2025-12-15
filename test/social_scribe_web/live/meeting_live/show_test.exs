@@ -3,7 +3,6 @@ defmodule SocialScribeWeb.MeetingLive.ShowTest do
 
   import Phoenix.LiveViewTest
   import SocialScribe.MeetingsFixtures
-  import SocialScribe.HubspotFixtures
   import SocialScribe.CalendarFixtures
   import SocialScribe.BotsFixtures
 

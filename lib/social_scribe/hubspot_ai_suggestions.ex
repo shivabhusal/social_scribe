@@ -4,7 +4,6 @@ defmodule SocialScribe.HubspotAISuggestions do
   """
 
   alias SocialScribe.Meetings
-  alias SocialScribe.AIContentGenerator
 
   @gemini_model "gemini-2.0-flash-lite"
   @gemini_api_base_url "https://generativelanguage.googleapis.com/v1beta/models"

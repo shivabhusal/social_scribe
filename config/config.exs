@@ -18,7 +18,11 @@ config :social_scribe, Oban,
   ],
   plugins: [
     Oban.Plugins.Pruner,
-    {Oban.Plugins.Cron, crontab: [{"*/2 * * * *", SocialScribe.Workers.BotStatusPoller}]}
+    {Oban.Plugins.Cron,
+     crontab: [
+       {"*/2 * * * *", SocialScribe.Workers.BotStatusPoller},
+       {"0 * * * *", SocialScribe.Workers.HubSpotTokenRefresher}
+     ]}
   ]
 
 config :social_scribe,

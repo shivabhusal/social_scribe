@@ -300,7 +300,8 @@ defmodule SocialScribeWeb.UserSettingsLive.HubspotUpdateModal do
     # Only process if the assign is present and we're not already loading
     socket =
       cond do
-        {contact, meeting} = Map.get(socket.assigns, :generate_suggestions_for) ->
+        value = Map.get(socket.assigns, :generate_suggestions_for) ->
+          {contact, meeting} = value
           # Remove the assign to prevent reprocessing
           socket = assign(socket, :generate_suggestions_for, nil)
 
@@ -311,7 +312,8 @@ defmodule SocialScribeWeb.UserSettingsLive.HubspotUpdateModal do
           end)
           assign(socket, :loading_suggestions, true)
 
-        {contact, meeting} = Map.get(socket.assigns, :process_suggestions) ->
+        value = Map.get(socket.assigns, :process_suggestions) ->
+          {contact, meeting} = value
           # Remove the assign to prevent reprocessing
           socket = assign(socket, :process_suggestions, nil)
 
@@ -398,41 +400,6 @@ defmodule SocialScribeWeb.UserSettingsLive.HubspotUpdateModal do
 
   def handle_event("search_contacts", %{"_target" => ["query"], "query" => query}, socket) when is_binary(query) do
     handle_search_contacts(query, socket)
-  end
-
-  defp handle_search_contacts(query, socket) do
-    if socket.assigns.hubspot_connected && query != "" do
-      case Accounts.ensure_valid_hubspot_token(socket.assigns.hubspot_credential) do
-        {:ok, valid_token} ->
-          case HubspotApi.search_contacts(valid_token, query) do
-            {:ok, contacts} ->
-              updated_credential = Accounts.get_user_credential!(socket.assigns.hubspot_credential.id)
-
-              {:noreply,
-               socket
-               |> assign(:search_results, contacts)
-               |> assign(:search_form, to_form(%{"query" => query}))
-               |> assign(:search_error, nil)
-               |> assign(:hubspot_credential, updated_credential)}
-
-            {:error, reason} ->
-              error_message = format_error(reason)
-              {:noreply,
-               socket
-               |> assign(:search_results, [])
-               |> assign(:search_error, error_message)}
-          end
-
-        {:error, reason} ->
-          error_message = "Failed to refresh token: #{inspect(reason)}"
-          {:noreply,
-           socket
-           |> assign(:search_results, [])
-           |> assign(:search_error, error_message)}
-      end
-    else
-      {:noreply, socket}
-    end
   end
 
   def handle_event("select_contact", %{"contact-id" => contact_id}, socket) do
@@ -523,6 +490,34 @@ defmodule SocialScribeWeb.UserSettingsLive.HubspotUpdateModal do
           error_message = "Failed to refresh token: #{inspect(reason)}"
           {:noreply, assign(socket, :suggestions_error, error_message)}
       end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("refetch_suggestions", _params, socket) do
+    if socket.assigns.selected_contact && socket.assigns.selected_meeting do
+      # Delete cached suggestions and regenerate
+      HubspotSuggestions.delete_suggestions(
+        socket.assigns.selected_meeting.id,
+        socket.assigns.selected_contact.id
+      )
+
+      socket =
+        socket
+        |> assign(:suggestions, [])
+        |> assign(:approved_suggestions, %{})
+        |> assign(:loading_suggestions, true)
+        |> assign(:suggestions_error, nil)
+        |> assign(:using_cached_suggestions, false)
+
+      # Spawn task to generate suggestions asynchronously
+      parent_pid = self()
+      Task.start(fn ->
+        send(parent_pid, {:generate_suggestions, socket.assigns.selected_contact, socket.assigns.selected_meeting})
+      end)
+
+      {:noreply, socket}
     else
       {:noreply, socket}
     end
@@ -625,6 +620,41 @@ defmodule SocialScribeWeb.UserSettingsLive.HubspotUpdateModal do
     end
   end
 
+  defp handle_search_contacts(query, socket) do
+    if socket.assigns.hubspot_connected && query != "" do
+      case Accounts.ensure_valid_hubspot_token(socket.assigns.hubspot_credential) do
+        {:ok, valid_token} ->
+          case HubspotApi.search_contacts(valid_token, query) do
+            {:ok, contacts} ->
+              updated_credential = Accounts.get_user_credential!(socket.assigns.hubspot_credential.id)
+
+              {:noreply,
+               socket
+               |> assign(:search_results, contacts)
+               |> assign(:search_form, to_form(%{"query" => query}))
+               |> assign(:search_error, nil)
+               |> assign(:hubspot_credential, updated_credential)}
+
+            {:error, reason} ->
+              error_message = format_error(reason)
+              {:noreply,
+               socket
+               |> assign(:search_results, [])
+               |> assign(:search_error, error_message)}
+          end
+
+        {:error, reason} ->
+          error_message = "Failed to refresh token: #{inspect(reason)}"
+          {:noreply,
+           socket
+           |> assign(:search_results, [])
+           |> assign(:search_error, error_message)}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_info(:clear_search, socket) do
     {:noreply, assign(socket, :search_results, nil)}
   end
@@ -673,31 +703,6 @@ defmodule SocialScribeWeb.UserSettingsLive.HubspotUpdateModal do
          |> assign(:loading_suggestions, false)
          |> assign(:suggestions_error, error_message)
          |> assign(:using_cached_suggestions, false)}
-    end
-  end
-
-  def handle_event("refetch_suggestions", _params, socket) do
-    if socket.assigns.selected_contact && socket.assigns.selected_meeting do
-      # Delete cached suggestions and regenerate
-      HubspotSuggestions.delete_suggestions(
-        socket.assigns.selected_meeting.id,
-        socket.assigns.selected_contact.id
-      )
-
-      socket =
-        socket
-        |> assign(:suggestions, [])
-        |> assign(:approved_suggestions, %{})
-        |> assign(:loading_suggestions, true)
-        |> assign(:suggestions_error, nil)
-        |> assign(:using_cached_suggestions, false)
-
-      # Send message to parent LiveView, which will forward to component
-      send(self(), {:generate_suggestions_for_component, socket.assigns.selected_contact, socket.assigns.selected_meeting})
-
-      {:noreply, socket}
-    else
-      {:noreply, socket}
     end
   end
 

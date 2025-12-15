@@ -66,7 +66,7 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponentTest do
     test "renders contact search when hubspot is connected", %{
       conn: conn,
       meeting: meeting,
-      hubspot_credential: credential
+      hubspot_credential: _credential
     } do
       # Ensure credential is associated with user
       {:ok, view, _html} =
@@ -79,7 +79,7 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponentTest do
     test "displays cached suggestions when available", %{
       conn: conn,
       meeting: meeting,
-      hubspot_credential: credential,
+      hubspot_credential: _credential,
       user: user
     } do
       # Create cached suggestions
@@ -115,7 +115,7 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponentTest do
     test "handles search_contacts event", %{
       conn: conn,
       meeting: meeting,
-      hubspot_credential: credential
+      hubspot_credential: _credential
     } do
       {:ok, view, _html} =
         live(conn, ~p"/dashboard/meetings/#{meeting.id}/hubspot_update")
@@ -128,7 +128,7 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponentTest do
     test "handles clear_contact event", %{
       conn: conn,
       meeting: meeting,
-      hubspot_credential: credential,
+      hubspot_credential: _credential,
       user: user
     } do
       # Create a cached contact
@@ -149,7 +149,7 @@ defmodule SocialScribeWeb.MeetingLive.HubspotUpdateComponentTest do
     test "handles toggle_suggestion event", %{
       conn: conn,
       meeting: meeting,
-      hubspot_credential: credential,
+      hubspot_credential: _credential,
       user: user
     } do
       # Create cached suggestions
