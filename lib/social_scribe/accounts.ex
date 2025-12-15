@@ -273,16 +273,74 @@ defmodule SocialScribe.Accounts do
   """
   def find_or_create_user_credential(user, %Auth{provider: provider} = auth)
       when provider in [:linkedin, :facebook, :hubspot] do
-    case get_user_credential(
-           user,
-           Atom.to_string(auth.provider)
-         ) do
+    # Extract uid from auth for each provider type
+    uid = extract_uid_from_auth(auth)
+
+    case get_user_credential(user, Atom.to_string(auth.provider), uid) do
       nil ->
-        create_user_credential(format_credential_attrs(user, auth))
+        # Try to insert, but if it fails due to unique constraint, update instead
+        attrs = format_credential_attrs(user, auth)
+
+        try do
+          case create_user_credential(attrs) do
+            {:ok, credential} ->
+              {:ok, credential}
+
+            {:error, %Ecto.Changeset{errors: errors}} = error ->
+              # Check if it's a unique constraint error
+              if has_unique_constraint_error?(errors) do
+                # Constraint violation - find existing credential and update it
+                case Repo.get_by(UserCredential, provider: attrs.provider, uid: attrs.uid) do
+                  nil ->
+                    error
+
+                  existing_credential ->
+                    update_user_credential(existing_credential, attrs)
+                end
+              else
+                error
+              end
+
+            {:error, _} = error ->
+              error
+          end
+        rescue
+          _e in Ecto.ConstraintError ->
+            # Database-level constraint violation (race condition) - find and update
+            case Repo.get_by(UserCredential, provider: attrs.provider, uid: attrs.uid) do
+              nil ->
+                {:error, :constraint_violation}
+
+              existing_credential ->
+                update_user_credential(existing_credential, attrs)
+            end
+        end
 
       %UserCredential{} = credential ->
         update_user_credential(credential, format_credential_attrs(user, auth))
     end
+  end
+
+  defp extract_uid_from_auth(%Auth{provider: :hubspot, extra: %{raw_info: %{hub_id: hub_id}}}) do
+    to_string(hub_id)
+  end
+
+  defp extract_uid_from_auth(%Auth{provider: :linkedin, extra: %{raw_info: %{user: %{"sub" => sub}}}}) do
+    "urn:li:person:#{sub}"
+  end
+
+  defp extract_uid_from_auth(%Auth{provider: :facebook, uid: uid}) do
+    uid
+  end
+
+  defp has_unique_constraint_error?(errors) do
+    Enum.any?(errors, fn
+      {field, {message, _}} when field in [:provider, :uid] ->
+        String.contains?(message, "has already been taken") or
+          String.contains?(message, "already exists")
+      _ ->
+        false
+    end)
   end
 
   def find_or_create_user_credential(user, %Auth{} = auth) do

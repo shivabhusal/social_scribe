@@ -2,7 +2,9 @@ defmodule SocialScribe.AccountsTest do
   use SocialScribe.DataCase
 
   alias SocialScribe.Accounts
+  alias SocialScribe.Repo
 
+  import Ecto.Query
   import SocialScribe.AccountsFixtures
   alias SocialScribe.Accounts.{User, UserToken, UserCredential}
 
@@ -633,6 +635,83 @@ defmodule SocialScribe.AccountsTest do
     test "ensure_valid_hubspot_token/1 function exists and has correct arity" do
       # Verify the function exists
       assert function_exported?(Accounts, :ensure_valid_hubspot_token, 1)
+    end
+
+    test "when two different users connect to the same HubSpot account, it updates the credential to the second user" do
+      # Create first user and connect to HubSpot
+      user1 = user_fixture(%{email: "user1@example.com"})
+      hub_id = 123456789
+
+      auth1 = %Ueberauth.Auth{
+        provider: :hubspot,
+        uid: nil,
+        info: %Ueberauth.Auth.Info{
+          email: user1.email
+        },
+        credentials: %Ueberauth.Auth.Credentials{
+          token: "token-user1",
+          refresh_token: "refresh-token-user1",
+          expires_at: DateTime.utc_now() |> DateTime.add(3600, :second) |> DateTime.to_unix()
+        },
+        extra: %Ueberauth.Auth.Extra{
+          raw_info: %{
+            hub_id: hub_id,
+            app_id: 12345
+          }
+        }
+      }
+
+      # First user connects successfully
+      {:ok, credential1} = Accounts.find_or_create_user_credential(user1, auth1)
+
+      assert credential1.user_id == user1.id
+      assert credential1.provider == "hubspot"
+      assert credential1.uid == to_string(hub_id)
+      assert credential1.token == "token-user1"
+
+      # Create second user with different email
+      user2 = user_fixture(%{email: "user2@example.com"})
+
+      auth2 = %Ueberauth.Auth{
+        provider: :hubspot,
+        uid: nil,
+        info: %Ueberauth.Auth.Info{
+          email: user2.email
+        },
+        credentials: %Ueberauth.Auth.Credentials{
+          token: "token-user2",
+          refresh_token: "refresh-token-user2",
+          expires_at: DateTime.utc_now() |> DateTime.add(3600, :second) |> DateTime.to_unix()
+        },
+        extra: %Ueberauth.Auth.Extra{
+          raw_info: %{
+            hub_id: hub_id,  # Same hub_id as user1
+            app_id: 12345
+          }
+        }
+      }
+
+      # Second user tries to connect to the same HubSpot account
+      # This should handle the unique constraint and update the credential to user2
+      {:ok, credential2} = Accounts.find_or_create_user_credential(user2, auth2)
+
+      # The credential should now belong to user2 (not user1)
+      assert credential2.user_id == user2.id
+      assert credential2.provider == "hubspot"
+      assert credential2.uid == to_string(hub_id)
+      assert credential2.token == "token-user2"
+      assert credential2.refresh_token == "refresh-token-user2"
+
+      # Verify that user1 no longer has this credential
+      assert Accounts.get_user_credential(user1, "hubspot", to_string(hub_id)) == nil
+
+      # Verify that only one credential exists with this provider and uid
+      credentials = Repo.all(
+        from c in UserCredential,
+        where: c.provider == "hubspot" and c.uid == ^to_string(hub_id)
+      )
+      assert length(credentials) == 1
+      assert hd(credentials).user_id == user2.id
     end
   end
 end
