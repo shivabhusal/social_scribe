@@ -31,7 +31,7 @@ config :social_scribe,
 
 # Configures the endpoint
 config :social_scribe, SocialScribeWeb.Endpoint,
-  url: [host: "localhost"],
+  url: [host: System.get_env("PHX_HOST") || "localhost"],
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
     formats: [html: SocialScribeWeb.ErrorHTML, json: SocialScribeWeb.ErrorJSON],
