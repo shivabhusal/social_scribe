@@ -93,7 +93,7 @@ config :ueberauth, Ueberauth,
     facebook:
       {Ueberauth.Strategy.Facebook,
        [
-         default_scope: "email,public_profile,pages_show_list,pages_manage_posts"
+         default_scope: "email,public_profile,user_link,user_posts"
        ]},
     hubspot:
       {Ueberauth.Strategy.Hubspot,
